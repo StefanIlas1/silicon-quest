@@ -27,7 +27,7 @@ vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: {},
   getDocument: () => ({
     promise: Promise.resolve({
-      numPages: 7,
+      numPages: 70,
       getPage: mock.getPage,
       destroy: mock.destroy,
     }),
@@ -62,6 +62,7 @@ beforeEach(() => {
     if (command === "get_book_document") return meta;
     if (command === "get_book_pdf") return [37, 80, 68, 70];
     if (command === "get_book_reader_state") return state;
+    if (command === "get_pdf_annotations") return [];
     if (command === "import_book_pdf") return meta;
     if (command === "set_book_page") {
       state = { ...state, page: args.page };
@@ -96,6 +97,60 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("persisted PDF workspace", () => {
+  it("bookmarks and unbookmarks the current page from the visible toolbar", async () => {
+    render(<Reader bookId="csapp" title="Systems" onError={vi.fn()} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Bookmark page 3" }),
+    );
+    const toggle = await screen.findByRole("button", {
+      name: "Remove bookmark for page 3",
+    });
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(state.bookmarks.some((b) => b.page === 3)).toBe(true);
+    fireEvent.click(toggle);
+    await screen.findByRole("button", { name: "Bookmark page 3" });
+    expect(state.bookmarks.some((b) => b.page === 3)).toBe(false);
+  });
+  it("allows typing a multidigit page before committing navigation", async () => {
+    render(<Reader bookId="csapp" title="Systems" onError={vi.fn()} />);
+    const input = await screen.findByRole("spinbutton", {
+      name: "Page number",
+    });
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.change(input, { target: { value: "12" } });
+    expect(
+      mock.invoke.mock.calls.some(([command]) => command === "set_book_page"),
+    ).toBe(false);
+    fireEvent.blur(input);
+    await waitFor(() => expect(state.page).toBe(12));
+    expect((input as HTMLInputElement).value).toBe("12");
+  });
+  it("saves the page reached by scrolling through the book", async () => {
+    render(<Reader bookId="csapp" title="Systems" onError={vi.fn()} />);
+    await screen.findByRole("region", { name: "Page 70 of 70" });
+    const stage = screen.getByRole("region", { name: /PDF pages/ });
+    Object.defineProperty(stage, "clientHeight", { value: 500 });
+    vi.spyOn(stage, "getBoundingClientRect").mockReturnValue({
+      top: 0,
+    } as DOMRect);
+    document.querySelectorAll<HTMLElement>("[data-pdf-page]").forEach((p) => {
+      const top = (Number(p.dataset.pdfPage) - 5) * 300;
+      vi.spyOn(p, "getBoundingClientRect").mockReturnValue({
+        top,
+        bottom: top + 300,
+      } as DOMRect);
+    });
+    fireEvent.scroll(stage);
+    await waitFor(() => expect(state.page).toBe(5));
+    expect(
+      (
+        screen.getByRole("spinbutton", {
+          name: "Page number",
+        }) as HTMLInputElement
+      ).value,
+    ).toBe("5");
+    await screen.findByText("Page saved locally");
+  });
   it("keeps browser bookmarks and page movement temporary without invoking storage", async () => {
     mock.native = false;
     render(<Reader bookId="csapp" title="Systems" onError={vi.fn()} />);

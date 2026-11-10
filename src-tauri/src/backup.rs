@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-const CURRENT_SCHEMA: i64 = 9;
+const CURRENT_SCHEMA: i64 = 10;
 const APPLICATION_ID: i64 = 1397836881;
 const MAX_BACKUP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const PREVIEW_LIFETIME: Duration = Duration::from_secs(15 * 60);
@@ -34,6 +34,7 @@ pub struct BackupCounts {
     pub attempts: i64,
     pub notes: i64,
     pub pdfs: i64,
+    pub pdf_annotations: i64,
     pub pdf_bytes: i64,
     pub artwork: i64,
     pub artwork_bytes: i64,
@@ -244,6 +245,7 @@ fn reference_schema(version: i64) -> Result<Connection> {
         include_str!("../migrations/007_credential_tracking.sql"),
         include_str!("../migrations/008_chapters.sql"),
         include_str!("../migrations/009_artwork.sql"),
+        include_str!("../migrations/010_pdf_annotations.sql"),
     ]
     .into_iter()
     .take(version as usize)
@@ -262,7 +264,7 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
     conn.pragma_update(None, "query_only", true)?;
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if !(1..=CURRENT_SCHEMA).contains(&version) {
-        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–9; newer schemas require a newer app."));
+        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–10; newer schemas require a newer app."));
     }
     let app_id: i64 = conn.pragma_query_value(None, "application_id", |r| r.get(0))?;
     if (version >= 5 && app_id != APPLICATION_ID)
@@ -453,6 +455,10 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
             ));
         }
     }
+    if version >= 10 {
+        crate::annotations::validate_integrity(&conn)
+            .map_err(|_| invalid("This backup contains invalid or unsupported PDF annotations."))?;
+    }
     if version >= 9 {
         crate::artwork::validate_integrity(&conn)
             .map_err(|_| invalid("This backup contains invalid or unsupported local artwork."))?;
@@ -497,6 +503,7 @@ fn counts(conn: &Connection) -> Result<BackupCounts> {
         attempts: scalar(conn, "SELECT count(*) FROM quiz_attempts")?,
         notes: scalar(conn, "SELECT count(*) FROM notes")?,
         pdfs: scalar(conn, "SELECT count(*) FROM book_documents")?,
+        pdf_annotations: scalar(conn,"SELECT count(*) FROM pdf_annotations WHERE deleted_at IS NULL")?,
         pdf_bytes: scalar(
             conn,
             "SELECT COALESCE(sum(length(bytes)),0) FROM book_documents",

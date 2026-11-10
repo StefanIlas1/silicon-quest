@@ -1,0 +1,114 @@
+.study-document,
+.pdf-reader {
+  min-height: 0;
+}
+.pdf-reader {
+  overflow: hidden;
+}
+.reader-panels {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  overflow: auto;
+}
+.reader-panels > .pdf-annotations {
+  flex-shrink: 0;
+}
+.continuous-pdf-stage {
+  min-height: 120px;
+  position: relative;
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 16px 24px 32px;
+}
+.continuous-pdf-stage:focus-visible {
+  outline: 2px solid #d3a65b;
+  outline-offset: -3px;
+}
+.pdf-continuous-page {
+  width: max-content;
+  min-width: 100%;
+  margin: 0 0 22px;
+}
+.pdf-page-caption {
+  display: block;
+  color: #a8afb9;
+  text-align: center;
+  font-size: 10px;
+  line-height: 24px;
+  user-select: none;
+}
+.pdf-page-surface {
+  position: relative;
+  background: #fff;
+  margin: 0 auto;
+  box-shadow: 0 2px 15px #00000033;
+}
+.pdf-page-surface canvas {
+  margin: 0;
+  box-shadow: none;
+}
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  text-align: initial;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+}
+.pdf-text-layer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.pdf-text-layer > :not(.markedContent),
+.pdf-text-layer .markedContent span:not(.markedContent) {
+  z-index: 1;
+}
+.pdf-text-layer span.markedContent {
+  top: 0;
+  height: 0;
+}
+.pdf-text-layer ::selection {
+  background: #4285f466;
+}
+.pdf-page-error {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: #282b30ed;
+  color: #e6e8eb;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+.reader-toolbar-actions .quick-bookmark {
+  color: #e6c38a;
+}
+.reader-toolbar-actions .quick-bookmark[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+.pdf-reader .bookmarks-panel {
+  flex: 0 0 auto;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.reader-footer .reading-hint {
+  color: #aeb8c5;
+}
+@media (max-width: 850px) {
+  .continuous-pdf-stage {
+    padding-inline: 12px;
+  }
+  .reader-footer .reading-hint {
+    display: none;
+  }
+}

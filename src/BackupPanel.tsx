@@ -1,3 +1,7 @@
+import {
+  annotationDraftCount,
+  discardAnnotationDrafts,
+} from "./PdfAnnotations";
 import { useContext, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -20,6 +24,7 @@ export type BackupCounts = {
   attempts: number;
   notes: number;
   pdfs: number;
+  pdfAnnotations?: number;
   pdfBytes: number;
   artwork?: number;
   artworkBytes?: number;
@@ -82,6 +87,7 @@ export default function BackupPanel({
   unsavedChapterDrafts?: number;
   otherOperationBusy?: boolean;
 }) {
+  const unsavedAnnotations = annotationDraftCount();
   const focus = useFocus();
   const notifyRestored = useContext(RestoreContext);
   const [preview, setPreview] = useState<BackupPreview | null>(null);
@@ -98,6 +104,7 @@ export default function BackupPanel({
   const activeFocus = focus.summary.activeSession;
   const blocked = !native || !!operation || otherOperationBusy || focus.busy;
   function showRestart(result: RestartState) {
+    discardAnnotationDrafts();
     restoredRef.current = true;
     previewRef.current = null;
     if (alive.current) {
@@ -295,8 +302,8 @@ export default function BackupPanel({
           <h3>Save a local backup</h3>
           <p>
             Choose where to save a consistent SQLite snapshot: progress, notes,
-            PDFs, quiz and review history, project and course evidence, and
-            confirmed focus time.
+            PDFs, saved PDF page notes and highlights, quiz and review history,
+            project and course evidence, and confirmed focus time.
           </p>
           <button
             className="secondary-button"
@@ -348,6 +355,14 @@ export default function BackupPanel({
         <p className="backup-draft-warning">
           A focus session is active. Exports include confirmed checkpoints only;
           finish this session before restoring.
+        </p>
+      )}
+      {unsavedAnnotations > 0 && (
+        <p className="backup-draft-warning">
+          You have {unsavedAnnotations} unsaved PDF annotation{" "}
+          {unsavedAnnotations === 1 ? "draft" : "drafts"}. Only saved page notes
+          and highlights are exported. Save them in the reader before exporting;
+          restoring discards these drafts.
         </p>
       )}
       {unsavedChapterDrafts > 0 && (
@@ -453,6 +468,10 @@ export default function BackupPanel({
                     value: `${preview!.counts.pdfs} · ${fileSize(preview!.counts.pdfBytes)}`,
                   },
                   {
+                    label: "Saved PDF annotations",
+                    value: preview!.counts.pdfAnnotations ?? 0,
+                  },
+                  {
                     label: "Private cover images",
                     value: `${preview!.counts.artwork ?? 0} · ${fileSize(preview!.counts.artworkBytes ?? 0)}`,
                   },
@@ -538,6 +557,13 @@ export default function BackupPanel({
                   You currently have {unsavedNotes} unsaved note{" "}
                   {unsavedNotes === 1 ? "draft" : "drafts"}. Restoring and
                   restarting discards them.
+                </p>
+              )}
+              {unsavedAnnotations > 0 && (
+                <p className="backup-draft-warning">
+                  You also have {unsavedAnnotations} unsaved PDF annotation{" "}
+                  {unsavedAnnotations === 1 ? "draft" : "drafts"}. Restoring
+                  discards these drafts.
                 </p>
               )}
               {unsavedChapterDrafts > 0 && (
@@ -728,6 +754,7 @@ export function RestoredBackupScreen({ restored }: { restored: RestartState }) {
             <div className="backup-restored-counts">
               <span>{restored.counts.attempts} quiz attempts</span>
               <span>{restored.counts.pdfs} PDFs</span>
+              <span>{restored.counts.pdfAnnotations ?? 0} PDF annotations</span>
               <span>{restored.counts.artwork ?? 0} cover images</span>
               <span>{restored.counts.notes} saved note entries</span>
             </div>

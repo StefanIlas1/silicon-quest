@@ -1,6 +1,6 @@
 # Local backup and restore
 
-Settings can export a standalone SQLite copy of saved learning data. It includes imported PDFs, normalized private book/course artwork, notes, reading/quiz/XP records, reader positions/bookmarks, manual chapter indexes/notes/page mappings, activity days, focus checkpoints, review schedules, project evidence/history and personal course/credential reports. Unsaved note/chapter/project/course drafts and the live timer's unconfirmed interval are not included. Save drafts before exporting.
+Settings can export a standalone SQLite copy of saved learning data. It includes imported PDFs, normalized private book/course artwork, notes, reading/quiz/XP records, reader positions/bookmarks, PDF page notes/text highlights, manual chapter indexes/notes/page mappings, activity days, focus checkpoints, review schedules, project evidence/history and personal course/credential reports. Unsaved note/chapter/annotation/project/course drafts and the live timer's unconfirmed interval are not included. Save drafts before exporting.
 
 Backups are **not encrypted** and have no password protection. The app performs local file operations without a cloud-transfer service. You choose the destination; an operating-system synced or shared folder may distribute that file independently of Silicon Quest. Treat the copy as private study material, including any licensed PDFs and artwork it contains. Artwork source downloads and separate provenance manifests are not in the database and are not included by the app's backup feature.
 
@@ -14,7 +14,7 @@ An active focus session is exported at its last confirmed checkpoint. Restoring 
 
 ## Inspect before replacing
 
-Choose **Choose backup to inspect**. This does not replace current learning data. The backend copies the selected file into a private staging directory and validates the complete schema, supported application identity, integrity, foreign keys and asset limits. Unexpected tables, triggers and views are rejected. Database schema revisions 1–9 are supported; this is a schema range, not a list of app release versions. Schema 9 validates known artwork identities, normalized PNG bytes, decoded dimensions, timestamps and asset limits; the preview reports the image count and total stored bytes.
+Choose **Choose backup to inspect**. This does not replace current learning data. The backend copies the selected file into a private staging directory and validates the complete schema, supported application identity, integrity, foreign keys and asset limits. Unexpected tables, triggers and views are rejected. Database schema revisions 1–10 are supported; this is a schema range, not a list of app release versions. Schema 9 validates known artwork identities, normalized PNG bytes, decoded dimensions, timestamps and asset limits; the preview reports the image count and total stored bytes. Schema 10 also validates PDF annotation identities, versions, timestamps, content limits and normalized highlight geometry before replacing any live data.
 
 Older supported databases are migrated only in staging. The original selected file remains unchanged. The preview shows the staged file's saved contents and source/current schema revisions. It lasts 15 minutes; changing the original file after inspection does not change the prepared copy. Inspect again to prepare another version.
 

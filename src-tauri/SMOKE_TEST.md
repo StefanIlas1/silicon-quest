@@ -74,3 +74,34 @@ another process owned focus tracking; those controls were left untouched. The
 initial CUA app-launch call took about 261 seconds; subsequent inspection and
 cleanup calls completed. This record does not claim that a later source change
 was included in the already-built smoke bundle.
+
+## Continuous reading and PDF annotations - 2026-11-10
+
+Built and launched the debug macOS bundle with an explicitly isolated test-data
+directory. Imported an original synthetic three-page text PDF through the native
+picker; no licensed book or learner notes were used for these reader writes.
+
+Verified through the native UI:
+
+- Wheel-scrolled across page boundaries to page 3 and used the quick bookmark
+  action there.
+- Saved a page note on page 3, then used Previous page to reach page 2.
+- Drag-selected an actual line of selectable PDF text, saved its highlight, and
+  inspected the yellow overlay aligned with that line. The annotations count
+  showed both saved records.
+- Chapter/bookmark/annotation content stayed in the bounded metadata area while
+  the reader footer remained visible.
+- Quit the isolated app with Command-Q; its process exited successfully.
+
+Read-only inspection of the isolated SQLite database after exit confirmed one
+page-3 bookmark, a page-3 note and a page-2 highlight with normalized rectangles.
+`PRAGMA integrity_check` returned `ok`. Screenshots were inspected in the tool
+without saving them to the repository.
+
+Limits: a later accessibility snapshot selected a different application/profile,
+so UI interaction stopped rather than risking writes to an ambiguous instance.
+Native restart/persistence, replacement isolation, annotation edit/delete,
+scanned pages, cross-page selection, large documents and a narrow-window sweep
+were not verified by this smoke. Automated tests cover persistence, replacement,
+edit/delete and malformed anchors. Final selection-size validation refinements
+after this bundle are covered by automated checks, not this native observation.

@@ -1305,9 +1305,9 @@ export default function App() {
                     </div>
                     <p className="micro-copy">
                       This is a roadmap topic outline, not imported book text or
-                      a verified chapter map. Page position and bookmarks stay
-                      with your imported PDF. Text highlighting is not
-                      implemented in this version.
+                      a verified chapter map. Page position, bookmarks, page
+                      notes and text highlights stay with your imported PDF.
+                      Scanned pages may have no selectable text.
                     </p>
                   </div>
                 </aside>

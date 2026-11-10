@@ -17,6 +17,12 @@ import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { native, errorMessage } from "./backend";
 import ChapterIndex, { type ChapterDraft } from "./ChapterIndex";
+import PdfReadingView, { type PdfTextSelection } from "./PdfReadingView";
+import PdfAnnotations, {
+  PdfAnnotationOverlay,
+  type PdfAnnotation,
+} from "./PdfAnnotations";
+import "./reader.css";
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 type DocumentInfo = {
   bookId: string;
@@ -59,8 +65,12 @@ export default function Reader({
   const [zoom, setZoom] = useState(1);
   const [busy, setBusy] = useState(false);
   const [initialLoading, setInitialLoading] = useState(native);
-  const [renderError, setRenderError] = useState("");
-  const [retry, setRetry] = useState(0);
+  const [jump, setJump] = useState<{ page: number; version: number } | null>(
+    null,
+  );
+  const [pageInput, setPageInput] = useState<string | null>(null);
+  const [selection, setSelection] = useState<PdfTextSelection | null>(null);
+  const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [bookmarks, setBookmarks] = useState<PageBookmark[]>([]);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [bookmarkLabel, setBookmarkLabel] = useState("");
@@ -71,7 +81,7 @@ export default function Reader({
   >(native ? "unavailable" : "session");
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
   const writeVersion = useRef(0);
-  const canvas = useRef<HTMLCanvasElement>(null);
+
   const fileInput = useRef<HTMLInputElement>(null);
   const alive = useRef(true);
   useEffect(() => {
@@ -91,10 +101,13 @@ export default function Reader({
     setDoc(null);
     setInfo(null);
     setPage(1);
+    setPageInput(null);
     setBookmarks([]);
     setStateReady(!native);
     setPageSaveStatus(native ? "unavailable" : "session");
-    setRenderError("");
+    setJump(null);
+    setSelection(null);
+    setAnnotations([]);
     setInitialLoading(native);
     if (!native) return;
     (async () => {
@@ -149,32 +162,6 @@ export default function Reader({
       alive = false;
     };
   }, [bookId]);
-  useEffect(() => {
-    if (!doc || !canvas.current) return;
-    setRenderError("");
-    let cancelled = false;
-    let task: pdfjs.RenderTask | undefined;
-    (async () => {
-      try {
-        const pdfPage = await doc.getPage(page);
-        if (cancelled || !canvas.current) return;
-        const view = pdfPage.getViewport({ scale: zoom * 1.35 });
-        const c = canvas.current;
-        c.width = view.width;
-        c.height = view.height;
-        const context = c.getContext("2d");
-        if (!context) return;
-        task = pdfPage.render({ canvasContext: context, viewport: view });
-        await task.promise;
-      } catch (e) {
-        if (!cancelled) setRenderError(errorMessage(e));
-      }
-    })();
-    return () => {
-      cancelled = true;
-      task?.cancel();
-    };
-  }, [doc, page, zoom, retry]);
   async function importFile(file: File | undefined) {
     if (!file || initialLoading) return;
     if (file.size > 100 * 1024 * 1024) {
@@ -205,6 +192,8 @@ export default function Reader({
         return;
       }
       setInfo(meta);
+      setSelection(null);
+      if (meta.documentRevision !== info?.documentRevision) setAnnotations([]);
       setStateReady(!native);
       setBookmarks([]);
       setPage(1);
@@ -247,7 +236,7 @@ export default function Reader({
       }
       setDoc(pdf);
       importedPdf = undefined;
-      setRenderError("");
+      setJump(null);
     } catch (e) {
       importedPdf?.destroy();
       onError(`Could not open PDF: ${errorMessage(e)}`);
@@ -256,13 +245,20 @@ export default function Reader({
       if (fileInput.current) fileInput.current.value = "";
     }
   }
-  function goToPage(nextPage: number) {
+  function goToPage(nextPage: number, scroll = true) {
     if (!doc || busy) return;
     const bounded = Math.max(
       1,
       Math.min(doc.numPages, Math.trunc(nextPage) || 1),
     );
+    if (scroll)
+      setJump((previous) => ({
+        page: bounded,
+        version: (previous?.version ?? 0) + 1,
+      }));
     setPage(bounded);
+    setPageInput(null);
+    if (bounded !== page) setSelection(null);
     setBookmarkLabel(bookmarks.find((b) => b.page === bounded)?.label ?? "");
     if (!native) {
       setPageSaveStatus("session");
@@ -344,23 +340,34 @@ export default function Reader({
   }
   return (
     <div className="pdf-reader">
-      <ChapterIndex
-        key={bookId}
-        bookId={bookId}
-        documentRevision={info?.documentRevision ?? null}
-        pageCount={doc?.numPages}
-        currentPage={doc ? page : undefined}
-        onJump={goToPage}
-        onActivity={onActivity}
-        chapterDraft={chapterDraft}
-        onChapterDraftChange={onChapterDraftChange}
-      />
       <div className="reader-toolbar">
         <span>
           <FileText size={15} />
           {info?.fileName ?? "Local PDF reader"}
         </span>
         <div className="reader-toolbar-actions">
+          {doc && (
+            <button
+              className="icon-label quick-bookmark"
+              aria-label={
+                bookmarks.some((b) => b.page === page)
+                  ? `Remove bookmark for page ${page}`
+                  : `Bookmark page ${page}`
+              }
+              aria-pressed={bookmarks.some((b) => b.page === page)}
+              disabled={!stateReady || bookmarkBusy || busy}
+              onClick={() => {
+                const existing = bookmarks.find((b) => b.page === page);
+                if (existing) removeBookmark(existing.id);
+                else saveBookmark();
+              }}
+            >
+              <Bookmark size={15} />
+              {bookmarks.some((b) => b.page === page)
+                ? "Bookmarked"
+                : "Bookmark page"}
+            </button>
+          )}
           {doc && (
             <button
               className={`icon-label ${bookmarksOpen ? "selected" : ""}`}
@@ -389,116 +396,144 @@ export default function Reader({
           onChange={(e) => importFile(e.target.files?.[0])}
         />
       </div>
+      <div className="reader-panels">
+        <ChapterIndex
+          key={bookId}
+          bookId={bookId}
+          documentRevision={info?.documentRevision ?? null}
+          pageCount={doc?.numPages}
+          currentPage={doc ? page : undefined}
+          onJump={goToPage}
+          onActivity={onActivity}
+          chapterDraft={chapterDraft}
+          onChapterDraftChange={onChapterDraftChange}
+        />
+        {doc && (
+          <>
+            {bookmarksOpen && (
+              <section className="bookmarks-panel" aria-label="PDF bookmarks">
+                <div className="bookmarks-heading">
+                  <div>
+                    <h3>Page bookmarks</h3>
+                    <p>
+                      {native
+                        ? "Saved on this device, linked to this exact PDF."
+                        : "Temporary browser bookmarks. Close this page and they are gone."}
+                    </p>
+                  </div>
+                  <button
+                    className="icon-button"
+                    aria-label="Close bookmarks"
+                    onClick={() => setBookmarksOpen(false)}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <form
+                  className="bookmark-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveBookmark();
+                  }}
+                >
+                  <span>PAGE {page}</span>
+                  <input
+                    aria-label="Bookmark label"
+                    maxLength={120}
+                    value={bookmarkLabel}
+                    placeholder={
+                      bookmarks.some((b) => b.page === page)
+                        ? "Update this page’s bookmark label…"
+                        : "Give this page a label (optional)…"
+                    }
+                    onChange={(e) => setBookmarkLabel(e.target.value)}
+                  />
+                  <button
+                    className="secondary-button"
+                    type="submit"
+                    disabled={!stateReady || bookmarkBusy || busy}
+                  >
+                    <Bookmark size={13} />
+                    {bookmarks.some((b) => b.page === page) ? "Update" : "Save"}
+                  </button>
+                </form>
+                {bookmarks.length ? (
+                  <div className="bookmark-list">
+                    {bookmarks.map((b) => (
+                      <div
+                        key={b.id}
+                        className={b.page === page ? "current-bookmark" : ""}
+                      >
+                        <button
+                          className="bookmark-jump"
+                          disabled={b.page > doc.numPages || busy}
+                          onClick={() => goToPage(b.page)}
+                        >
+                          <span>{String(b.page).padStart(2, "0")}</span>
+                          <strong>{b.label || `Page ${b.page}`}</strong>
+                        </button>
+                        <button
+                          className="icon-button"
+                          aria-label={`Remove bookmark ${b.label || `Page ${b.page}`}`}
+                          disabled={!stateReady || bookmarkBusy || busy}
+                          onClick={() => removeBookmark(b.id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="bookmarks-empty">
+                    Save a definition, experiment, or idea to come back to.
+                  </p>
+                )}
+                {!stateReady && (
+                  <p className="bookmark-unavailable">
+                    Saved reading state is unavailable. Reopen this book before
+                    adding bookmarks.
+                  </p>
+                )}
+                <small>
+                  A different PDF has its own reading position and bookmarks.
+                  Importing the same PDF preserves them.
+                </small>
+              </section>
+            )}
+            <PdfAnnotations
+              key={`${bookId}:${info?.documentRevision}`}
+              bookId={bookId}
+              documentRevision={info!.documentRevision}
+              page={page}
+              pageCount={doc.numPages}
+              onNavigate={goToPage}
+              onError={onError}
+              disabled={busy || !stateReady}
+              selection={selection}
+              onSelectionClear={() => {
+                setSelection(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+              onAnnotationsChange={setAnnotations}
+            />
+          </>
+        )}
+      </div>
       {doc ? (
         <>
-          {bookmarksOpen && (
-            <section className="bookmarks-panel" aria-label="PDF bookmarks">
-              <div className="bookmarks-heading">
-                <div>
-                  <h3>Page bookmarks</h3>
-                  <p>
-                    {native
-                      ? "Saved on this device, linked to this exact PDF."
-                      : "Temporary browser bookmarks. Close this page and they are gone."}
-                  </p>
-                </div>
-                <button
-                  className="icon-button"
-                  aria-label="Close bookmarks"
-                  onClick={() => setBookmarksOpen(false)}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <form
-                className="bookmark-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  saveBookmark();
-                }}
-              >
-                <span>PAGE {page}</span>
-                <input
-                  aria-label="Bookmark label"
-                  maxLength={120}
-                  value={bookmarkLabel}
-                  placeholder={
-                    bookmarks.some((b) => b.page === page)
-                      ? "Update this page’s bookmark label…"
-                      : "Give this page a label (optional)…"
-                  }
-                  onChange={(e) => setBookmarkLabel(e.target.value)}
-                />
-                <button
-                  className="secondary-button"
-                  type="submit"
-                  disabled={!stateReady || bookmarkBusy || busy}
-                >
-                  <Bookmark size={13} />
-                  {bookmarks.some((b) => b.page === page) ? "Update" : "Save"}
-                </button>
-              </form>
-              {bookmarks.length ? (
-                <div className="bookmark-list">
-                  {bookmarks.map((b) => (
-                    <div
-                      key={b.id}
-                      className={b.page === page ? "current-bookmark" : ""}
-                    >
-                      <button
-                        className="bookmark-jump"
-                        disabled={b.page > doc.numPages || busy}
-                        onClick={() => goToPage(b.page)}
-                      >
-                        <span>{String(b.page).padStart(2, "0")}</span>
-                        <strong>{b.label || `Page ${b.page}`}</strong>
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`Remove bookmark ${b.label || `Page ${b.page}`}`}
-                        disabled={!stateReady || bookmarkBusy || busy}
-                        onClick={() => removeBookmark(b.id)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="bookmarks-empty">
-                  Save a definition, experiment, or idea to come back to.
-                </p>
-              )}
-              {!stateReady && (
-                <p className="bookmark-unavailable">
-                  Saved reading state is unavailable. Reopen this book before
-                  adding bookmarks.
-                </p>
-              )}
-              <small>
-                A different PDF has its own reading position and bookmarks.
-                Importing the same PDF preserves them.
-              </small>
-            </section>
-          )}
-          <div className="pdf-stage">
-            {renderError && (
-              <div className="empty-state">
-                <p>{renderError}</p>
-                <button
-                  className="secondary-button"
-                  onClick={() => setRetry((v) => v + 1)}
-                >
-                  Retry rendering
-                </button>
-              </div>
+          <PdfReadingView
+            key={info?.documentRevision}
+            doc={doc}
+            initialPage={page}
+            jump={jump}
+            zoom={zoom}
+            onPageChange={(next) => goToPage(next, false)}
+            onTextSelection={setSelection}
+            onSelectionError={onError}
+            renderPageOverlay={(number) => (
+              <PdfAnnotationOverlay annotations={annotations} page={number} />
             )}
-            <canvas
-              ref={canvas}
-              style={{ display: renderError ? "none" : "block" }}
-              aria-label={`Page ${page} of ${title}`}
-            />
-          </div>
+          />
           <div className="reader-footer">
             <div>
               <button
@@ -516,16 +551,22 @@ export default function Reader({
                   type="number"
                   min="1"
                   max={doc.numPages}
-                  value={page}
+                  value={pageInput ?? String(page)}
                   disabled={busy}
-                  onChange={(e) =>
-                    goToPage(
-                      Math.max(
-                        1,
-                        Math.min(doc.numPages, Number(e.target.value) || 1),
-                      ),
-                    )
-                  }
+                  onChange={(e) => setPageInput(e.target.value)}
+                  onBlur={(e) => {
+                    const requested = Number(e.currentTarget.value);
+                    if (requested !== page) goToPage(requested);
+                    else setPageInput(String(page));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") {
+                      e.currentTarget.value = String(page);
+                      setPageInput(String(page));
+                      e.currentTarget.blur();
+                    }
+                  }}
                 />{" "}
                 of {doc.numPages}
               </label>
@@ -538,6 +579,7 @@ export default function Reader({
                 <ChevronRight size={17} />
               </button>
             </div>
+            <span className="reading-hint">Scroll to keep reading</span>
             <span
               className={`page-save-status ${pageSaveStatus}`}
               role="status"

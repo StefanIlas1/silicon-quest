@@ -1,3 +1,4 @@
+pub mod annotations;
 pub mod artwork;
 pub mod backup;
 pub mod chapters;
@@ -23,6 +24,44 @@ mod desktop {
         })?;
         store.ensure_available()?;
         f(&mut store)
+    }
+    #[tauri::command]
+    fn get_pdf_annotations(
+        state: State<'_, AppState>,
+        book_id: String,
+        document_revision: String,
+    ) -> Result<Vec<crate::annotations::PdfAnnotation>> {
+        with_store(state, |s| {
+            s.get_pdf_annotations(&book_id, &document_revision)
+        })
+    }
+    #[tauri::command]
+    fn save_pdf_annotation(
+        state: State<'_, AppState>,
+        book_id: String,
+        document_revision: String,
+        input: crate::annotations::AnnotationInput,
+    ) -> Result<Vec<crate::annotations::PdfAnnotation>> {
+        with_store(state, |s| {
+            s.save_pdf_annotation(&book_id, &document_revision, input)
+        })
+    }
+    #[tauri::command]
+    fn remove_pdf_annotation(
+        state: State<'_, AppState>,
+        book_id: String,
+        document_revision: String,
+        annotation_id: String,
+        expected_version: i64,
+    ) -> Result<Vec<crate::annotations::PdfAnnotation>> {
+        with_store(state, |s| {
+            s.remove_pdf_annotation(
+                &book_id,
+                &document_revision,
+                &annotation_id,
+                expected_version,
+            )
+        })
     }
     #[tauri::command]
     fn get_book_chapters(
@@ -468,6 +507,9 @@ mod desktop {
                 get_local_artwork,
                 import_local_artwork,
                 remove_local_artwork,
+                get_pdf_annotations,
+                save_pdf_annotation,
+                remove_pdf_annotation,
                 get_book_chapters,
                 save_book_chapter,
                 set_topic_status,

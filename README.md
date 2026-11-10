@@ -1,6 +1,6 @@
 # Silicon Quest
 
-A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Read your own PDFs with saved page positions and labeled bookmarks, organize your own chapter index, keep notes, take curated knowledge checks, revisit a spaced-review queue, and track saved study activity. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
+A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Scroll through your own PDFs with saved page positions, labeled bookmarks, page notes and text highlights, organize your own chapter index, take curated knowledge checks, revisit a spaced-review queue, and track saved study activity. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
 
 The interface groups roadmap topics into **provisional modules**, not verified textbook chapters. Reading status, the latest graded check and repeated-review evidence are separate. Marking reading complete is not evidence of implementation, and a quiz pass is not a completed portfolio milestone. Reading suggestions follow roadmap phase order, including early parallel RTL study. A finished reading log does not complete project milestones. Course prices and hardware/tool compatibility are historical planning assumptions to verify with official sources before purchase.
 
@@ -56,7 +56,7 @@ Track the roadmap’s four course/credential plans with personal status, calenda
 
 ## Backups
 
-Settings can export a standalone SQLite backup, including saved PDFs, private cover images, chapter indexes and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note, chapter, project and course drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
+Settings can export a standalone SQLite backup, including saved PDFs, private cover images, chapter indexes and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note, chapter, annotation, project and course drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
 
 ## Book and course artwork
 
@@ -72,7 +72,9 @@ python3 curriculum/build_seed.py
 
 `curriculum/data.json` includes backend quiz answer keys. UI code imports `curriculum/data.ts`, which uses `public-data.json` without answers or explanations; the desktop backend returns explanations after grading.
 
-Desktop page positions and bookmarks are stored against the exact imported PDF. Reimporting the current PDF preserves them; replacing it with different bytes starts a fresh reading position and bookmark list. Browser preview keeps PDFs and bookmarks in memory for the current session only.
+Desktop page positions, bookmarks and annotations are stored against the exact imported PDF. Scroll naturally between pages or jump using the page field, bookmarks, chapter links or annotations. Use **Bookmark page** for a quick bookmark; open **Bookmarks** to edit labels. Add a page note or select text within one page and choose **Highlight selected text**, then save it. Highlights and notes live alongside the PDF and do not modify its bytes. Scanned pages may have no selectable text; cross-page text highlights are not supported.
+
+Reimporting the current PDF preserves its state; replacing it with different bytes starts fresh reader state and hides the old revision's annotations. Unsaved annotation drafts survive navigation for the app session; save before quitting or restoring a backup. PDF page numbers may differ from printed page numbers. Browser preview keeps PDFs and bookmarks in memory for the current session only and requires the desktop app to save annotations.
 
 Import only PDFs and images you have permission to use. Books, artwork, notes, quiz history and progress belong in local application storage. PDFs, SQLite files, backups, environment files and local personal folders are ignored by Git. Never add a local study database, private cover image or licensed textbook to the repository.
 

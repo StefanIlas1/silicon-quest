@@ -9,6 +9,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import BackupPanel from "./BackupPanel";
+import PdfAnnotations, {
+  discardAnnotationDrafts,
+  hasAnnotationDrafts,
+} from "./PdfAnnotations";
 import type { BackupPreview, RestoreResult } from "./BackupPanel";
 import RestoreBoundary from "./RestoreBoundary";
 import { RestoreContext } from "./restoreContext";
@@ -54,9 +58,11 @@ const restored: RestoreResult = {
   counts: preview.counts,
 };
 beforeEach(() => {
+  discardAnnotationDrafts();
   mock.native = true;
   vi.clearAllMocks();
   mock.invoke.mockImplementation(async (name) => {
+    if (name === "get_pdf_annotations") return [];
     if (name === "get_backup_status")
       return {
         restartRequired: false,
@@ -75,6 +81,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  discardAnnotationDrafts();
   vi.useRealTimers();
 });
 async function inspect() {
@@ -89,6 +96,45 @@ async function confirm() {
   fireEvent.click(screen.getByRole("button", { name: "Replace local data" }));
 }
 describe("explicit local backups", () => {
+  it("warns about retained PDF annotation drafts before export and restore, clearing only on confirmed replacement", async () => {
+    const reader = render(
+      <PdfAnnotations
+        bookId="csapp"
+        documentRevision="revision"
+        page={4}
+        pageCount={10}
+        onNavigate={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Note on page 4",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Note on page 4" }));
+    fireEvent.change(screen.getByLabelText("Page note"), {
+      target: { value: "Unsaved PDF idea" },
+    });
+    reader.unmount();
+    render(<BackupPanel />);
+    expect(
+      screen.getByText(/You have 1 unsaved PDF annotation draft/),
+    ).toBeTruthy();
+    await inspect();
+    expect(
+      screen.getByText(/You also have 1 unsaved PDF annotation draft/),
+    ).toBeTruthy();
+    expect(hasAnnotationDrafts()).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Replace local data" }));
+    await screen.findByRole("button", { name: "Restart Silicon Quest" });
+    expect(hasAnnotationDrafts()).toBe(false);
+  });
+
   it("warns about chapter drafts in export settings and restore confirmation", async () => {
     render(<BackupPanel unsavedChapterDrafts={2} />);
     expect(
