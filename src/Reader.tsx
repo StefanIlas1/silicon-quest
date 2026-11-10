@@ -12,6 +12,8 @@ import {
   Check,
   Trash2,
   X,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -23,6 +25,7 @@ import PdfAnnotations, {
   type PdfAnnotation,
 } from "./PdfAnnotations";
 import "./reader.css";
+import useReaderFullscreen from "./useReaderFullscreen";
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 type DocumentInfo = {
   bookId: string;
@@ -59,6 +62,7 @@ export default function Reader({
     expected?: ChapterDraft,
   ) => void;
 }) {
+  const fullscreen = useReaderFullscreen(onError);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [info, setInfo] = useState<DocumentInfo | null>(null);
   const [page, setPage] = useState(1);
@@ -339,13 +343,47 @@ export default function Reader({
     }
   }
   return (
-    <div className="pdf-reader">
+    <div
+      ref={fullscreen.root}
+      className={`pdf-reader${fullscreen.active ? " reader-fullscreen" : ""}`}
+      role={fullscreen.active ? "dialog" : undefined}
+      aria-modal={fullscreen.active ? true : undefined}
+      aria-label={
+        fullscreen.active ? `${title} — full-screen reader` : undefined
+      }
+      tabIndex={fullscreen.active ? -1 : undefined}
+    >
       <div className="reader-toolbar">
         <span>
           <FileText size={15} />
           {info?.fileName ?? "Local PDF reader"}
         </span>
         <div className="reader-toolbar-actions">
+          {(doc || fullscreen.active) && (
+            <button
+              ref={fullscreen.toggleButton}
+              className="icon-label reader-fullscreen-toggle"
+              aria-label={
+                fullscreen.active ? "Exit full screen" : "Read full screen"
+              }
+              aria-pressed={fullscreen.active}
+              aria-keyshortcuts={fullscreen.active ? "Escape" : undefined}
+              disabled={fullscreen.busy}
+              onClick={() => void fullscreen.toggle()}
+              title={
+                fullscreen.active
+                  ? "Exit full screen (Esc)"
+                  : "Read full screen"
+              }
+            >
+              {fullscreen.active ? (
+                <Minimize size={15} />
+              ) : (
+                <Maximize size={15} />
+              )}
+              {fullscreen.active ? "Exit full screen · Esc" : "Full screen"}
+            </button>
+          )}
           {doc && (
             <button
               className="icon-label quick-bookmark"
@@ -396,6 +434,11 @@ export default function Reader({
           onChange={(e) => importFile(e.target.files?.[0])}
         />
       </div>
+      {fullscreen.active && fullscreen.failure && (
+        <p className="reader-fullscreen-error" role="alert">
+          {fullscreen.failure}
+        </p>
+      )}
       <div className="reader-panels">
         <ChapterIndex
           key={bookId}

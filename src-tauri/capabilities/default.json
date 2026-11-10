@@ -3,5 +3,5 @@
   "identifier": "main-capability",
   "description": "Local main window with only essential Tauri core permissions",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-set-fullscreen"]
 }

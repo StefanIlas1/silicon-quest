@@ -204,6 +204,40 @@ describe("continuous PDF pages", () => {
       quote: "Locality matters",
       rects: [{ x: 0.1, y: 0.1, width: 0.3, height: 0.05 }],
     });
+    // Resizing, fullscreen, and zoom may move and scale the page, while the
+    // persisted coordinates must continue to describe the same passage.
+    for (const scale of [0.6, 1.5, 2]) {
+      vi.mocked(
+        document.querySelector<HTMLElement>(".pdf-page-surface")!
+          .getBoundingClientRect,
+      ).mockReturnValue(rect(70, 200 * scale, 100 * scale, 50));
+      Object.defineProperty(range, "getClientRects", {
+        configurable: true,
+        value: () => [
+          rect(70 + 20 * scale, 10 * scale, 30 * scale, 50 + 10 * scale),
+        ],
+      });
+      fireEvent.mouseUp(screen.getByRole("region", { name: /PDF pages/ }));
+      expect(selected).toHaveBeenLastCalledWith({
+        page: 1,
+        quote: "Locality matters",
+        rects: [{ x: 0.1, y: 0.1, width: 0.3, height: 0.05 }],
+      });
+    }
+    vi.mocked(
+      document.querySelector<HTMLElement>(".pdf-page-surface")!
+        .getBoundingClientRect,
+    ).mockReturnValue(rect(20, 200, 100, 10));
+    Object.defineProperty(range, "getClientRects", {
+      configurable: true,
+      value: () => [rect(10, 30, 40, 0), rect(240, 10, 10, 120)],
+    });
+    fireEvent.mouseUp(screen.getByRole("region", { name: /PDF pages/ }));
+    expect(selected).toHaveBeenLastCalledWith({
+      page: 1,
+      quote: "Locality matters",
+      rects: [{ x: 0, y: 0, width: 0.3, height: 0.1 }],
+    });
     selected.mockClear();
     Object.defineProperty(range, "getClientRects", {
       configurable: true,
@@ -214,7 +248,37 @@ describe("continuous PDF pages", () => {
     expect(selectionError).toHaveBeenCalledWith(
       expect.stringContaining("shorter passage"),
     );
+    // A page caption or error message is not PDF text.
+    range.selectNodeContents(document.querySelector(".pdf-page-caption")!);
     selection.removeAllRanges();
+    selection.addRange(range);
+    fireEvent.mouseUp(screen.getByRole("region", { name: /PDF pages/ }));
+    expect(selected).not.toHaveBeenCalled();
+    selection.removeAllRanges();
+  });
+  it("removes text from the old zoom while its replacement render is pending", async () => {
+    const props = {
+      doc,
+      initialPage: 1,
+      jump: null,
+      onPageChange: vi.fn(),
+    };
+    const view = render(<PdfReadingView {...props} zoom={1} />);
+    await waitFor(() => expect(mocks.textRender).toHaveBeenCalledOnce());
+    let finish!: () => void;
+    mocks.render.mockImplementationOnce(() => ({
+      promise: new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+      cancel: mocks.cancel,
+    }));
+    view.rerender(<PdfReadingView {...props} zoom={1.5} />);
+    await waitFor(() => expect(mocks.render).toHaveBeenCalledTimes(2));
+    expect(document.querySelector(".pdf-text-layer")?.textContent).toBe("");
+    await act(async () => finish());
+    expect(document.querySelector(".pdf-text-layer")?.textContent).toBe(
+      "Locality matters",
+    );
   });
   it("does not retain an old scroll anchor when a cached page rerenders at a new zoom", async () => {
     const changed = vi.fn();

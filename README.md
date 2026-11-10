@@ -28,7 +28,7 @@ npm run build
 cargo test --locked --no-default-features --manifest-path src-tauri/Cargo.toml
 ```
 
-See [TESTING.md](TESTING.md) for the verification scope and [ARCHITECTURE.md](ARCHITECTURE.md) for storage and curriculum boundaries. The [native smoke-test record](src-tauri/SMOKE_TEST.md) documents verified core desktop and reader workflows, with explicit limits: replacement fresh-state behavior is covered by automated tests; its final native visual check was interrupted by unavailable computer-use tooling.
+See [TESTING.md](TESTING.md) for the verification scope and [ARCHITECTURE.md](ARCHITECTURE.md) for storage and curriculum boundaries. The [native smoke-test record](src-tauri/SMOKE_TEST.md) documents verified core desktop, fullscreen and reader workflows and their limits. PDF replacement fresh-state behavior is covered by automated tests; its final native visual check remains unverified.
 
 ## Focus sessions
 
@@ -73,6 +73,8 @@ python3 curriculum/build_seed.py
 `curriculum/data.json` includes backend quiz answer keys. UI code imports `curriculum/data.ts`, which uses `public-data.json` without answers or explanations; the desktop backend returns explanations after grading.
 
 Desktop page positions, bookmarks and annotations are stored against the exact imported PDF. Scroll naturally between pages or jump using the page field, bookmarks, chapter links or annotations. Use **Bookmark page** for a quick bookmark; open **Bookmarks** to edit labels. Add a page note or select text within one page and choose **Highlight selected text**, then save it. Highlights and notes live alongside the PDF and do not modify its bytes. Scanned pages may have no selectable text; cross-page text highlights are not supported.
+
+Choose **Full screen** to expand the reader, then use **Exit full screen** or **Esc** to return. The desktop app uses native window fullscreen; browser preview uses browser fullscreen when available, with a viewport fallback. The same reader stays mounted, retaining its scroll position and unsaved annotation draft. Saved highlight coordinates scale with their PDF page and remain clipped within it.
 
 Reimporting the current PDF preserves its state; replacing it with different bytes starts fresh reader state and hides the old revision's annotations. Unsaved annotation drafts survive navigation for the app session; save before quitting or restoring a backup. PDF page numbers may differ from printed page numbers. Browser preview keeps PDFs and bookmarks in memory for the current session only and requires the desktop app to save annotations.
 

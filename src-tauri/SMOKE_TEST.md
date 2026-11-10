@@ -105,3 +105,36 @@ scanned pages, cross-page selection, large documents and a narrow-window sweep
 were not verified by this smoke. Automated tests cover persistence, replacement,
 edit/delete and malformed anchors. Final selection-size validation refinements
 after this bundle are covered by automated checks, not this native observation.
+
+## Fullscreen and page-contained annotations - 2026-11-10
+
+Built and launched a separate debug QA bundle with a distinct application
+identifier and `SILICON_QUEST_TEST_DATA_DIR=/private/tmp/sq-fullscreen-qa-20261110`.
+Used a synthetic PDF and isolated SQLite fixture; learner PDFs, notes and
+progress were not used for these writes.
+
+Verified through the native macOS UI:
+
+- Entered fullscreen and returned with Escape and the visible exit control.
+- Resized the reader and inspected the saved page-2 highlight in fullscreen
+  and at 110% zoom; its yellow rectangles remained aligned within the PDF page.
+- Kept an unsaved page-note draft through fullscreen transitions, then saved it.
+- Quit and restarted the isolated application; the saved note and highlight
+  persisted.
+- Quit the QA app after verification. Read-only inspection confirmed that the
+  source PDF bytes were unchanged.
+
+Notes and highlights remain private SQLite sidecar records tied to the exact
+PDF revision. This smoke does not establish that annotations are embedded in
+an exported PDF. Automated tests also cover unchanged PDF bytes, restart and
+backup persistence, same-byte reimport preservation and replacement isolation.
+
+Limits: this smoke used a short synthetic PDF on macOS. It did not repeat
+different-PDF replacement through the native picker, annotation edit/delete,
+scanned/cross-page selection limits, large-book behavior or Windows/Linux
+fullscreen. Focus trapping, rejected native operations and delayed/unmount
+cleanup were checked automatically, not through assistive technology.
+
+After the QA run, rebuilt the normal debug `Silicon Quest.app` bundle and
+verified its identifier was restored to `com.siliconquest.desktop`. This build
+was not launched against the learner's data for further writes.

@@ -12,10 +12,25 @@ const mock = vi.hoisted(() => ({
   invoke: vi.fn(),
   getPage: vi.fn(),
   destroy: vi.fn(),
+  fullscreen: false,
+  setFullscreen: vi.fn(),
+  resize: null as null | (() => void),
 }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: mock.invoke,
   isTauri: () => true,
+}));
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    isFullscreen: async () => mock.fullscreen,
+    setFullscreen: mock.setFullscreen,
+    onResized: async (callback: () => void) => {
+      mock.resize = callback;
+      return () => {
+        mock.resize = null;
+      };
+    },
+  }),
 }));
 vi.mock("./backend", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./backend")>()),
@@ -51,6 +66,10 @@ beforeEach(() => {
   mock.native = true;
   vi.clearAllMocks();
   state = structuredClone(initial);
+  mock.fullscreen = false;
+  mock.setFullscreen.mockImplementation(async (value: boolean) => {
+    mock.fullscreen = value;
+  });
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
     {} as CanvasRenderingContext2D,
   );
@@ -97,6 +116,44 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("persisted PDF workspace", () => {
+  it("enters native full screen and exits with Escape without remounting pages or losing a note draft", async () => {
+    render(<Reader bookId="csapp" title="Systems" onError={vi.fn()} />);
+    const toggle = await screen.findByRole("button", {
+      name: "Read full screen",
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Note on page 3" }),
+    );
+    const draft = screen.getByRole("textbox", { name: "Page note" });
+    fireEvent.change(draft, {
+      target: { value: "Unfinished full-screen thought" },
+    });
+    const stage = await screen.findByRole("region", { name: /PDF pages/ });
+    stage.scrollTop = 731;
+    stage.scrollLeft = 22;
+    toggle.focus();
+    fireEvent.click(toggle);
+    await screen.findByRole("dialog", { name: "Systems — full-screen reader" });
+    expect(mock.setFullscreen).toHaveBeenCalledWith(true);
+    expect(screen.getByRole("textbox", { name: "Page note" })).toBe(draft);
+    expect((draft as HTMLTextAreaElement).value).toBe(
+      "Unfinished full-screen thought",
+    );
+    expect(screen.getByRole("region", { name: /PDF pages/ })).toBe(stage);
+    expect(stage.scrollTop).toBe(731);
+    expect(stage.scrollLeft).toBe(22);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await screen.findByRole("button", { name: "Read full screen" });
+    expect(mock.setFullscreen).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(stage.scrollTop).toBe(731);
+    expect((draft as HTMLTextAreaElement).value).toBe(
+      "Unfinished full-screen thought",
+    );
+    expect(document.activeElement).toBe(toggle);
+    expect(state.page).toBe(3);
+    expect(mock.destroy).not.toHaveBeenCalled();
+  });
   it("bookmarks and unbookmarks the current page from the visible toolbar", async () => {
     render(<Reader bookId="csapp" title="Systems" onError={vi.fn()} />);
     fireEvent.click(

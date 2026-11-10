@@ -42,6 +42,9 @@ function PdfPage({
     let task: pdfjs.RenderTask | undefined;
     let layer: pdfjs.TextLayer | undefined;
     setError("");
+    // The surface changes size before an asynchronous page render completes.
+    // Never let a selection use text rectangles from its previous zoom.
+    text.current?.replaceChildren();
     (async () => {
       try {
         const pdfPage = await doc.getPage(page);
@@ -308,24 +311,27 @@ export default function PdfReadingView({
       return;
     }
     const surface = start.querySelector<HTMLElement>(".pdf-page-surface")!;
+    const textLayer = surface.querySelector(".pdf-text-layer");
+    if (
+      !textLayer?.contains(range.startContainer) ||
+      !textLayer.contains(range.endContainer)
+    )
+      return;
     const bounds = surface.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const rects = Array.from(range.getClientRects())
       .filter((r) => r.width > 0 && r.height > 0)
       .map((r) => {
-        const x = Math.max(
-          0,
-          Math.min(1, (r.left - bounds.left) / bounds.width),
-        );
-        const y = Math.max(
-          0,
-          Math.min(1, (r.top - bounds.top) / bounds.height),
-        );
+        // Intersect both edges, including text partly outside the crop box.
+        const left = Math.max(bounds.left, r.left);
+        const top = Math.max(bounds.top, r.top);
+        const right = Math.min(bounds.right, r.right);
+        const bottom = Math.min(bounds.bottom, r.bottom);
         return {
-          x,
-          y,
-          width: Math.max(0, Math.min(1 - x, r.width / bounds.width)),
-          height: Math.max(0, Math.min(1 - y, r.height / bounds.height)),
+          x: (left - bounds.left) / bounds.width,
+          y: (top - bounds.top) / bounds.height,
+          width: Math.max(0, right - left) / bounds.width,
+          height: Math.max(0, bottom - top) / bounds.height,
         };
       })
       .filter((r) => r.width > 0 && r.height > 0);
