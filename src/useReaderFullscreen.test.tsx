@@ -87,8 +87,10 @@ describe("reader full-screen lifecycle", () => {
     enter.focus();
     fireEvent.click(enter);
     await screen.findByRole("dialog");
-    expect(outside.inert).toBe(true);
-    expect(document.body.style.overflow).toBe("hidden");
+    await waitFor(() => {
+      expect(outside.inert).toBe(true);
+      expect(document.body.style.overflow).toBe("hidden");
+    });
     const last = screen.getByRole("button", { name: "Last control" });
     last.focus();
     fireEvent.keyDown(last, { key: "Tab" });
@@ -97,10 +99,12 @@ describe("reader full-screen lifecycle", () => {
     expect(document.activeElement).toBe(last);
     fireEvent.click(screen.getByRole("button", { name: "Exit" }));
     await screen.findByRole("button", { name: "Enter" });
-    expect(outside.inert).toBe(false);
-    expect(document.body.style.overflow).toBe("");
-    expect(document.activeElement).toBe(enter);
-    expect(mock.unlisten).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(outside.inert).toBe(false);
+      expect(document.body.style.overflow).toBe("");
+      expect(document.activeElement).toBe(enter);
+      expect(mock.unlisten).toHaveBeenCalled();
+    });
   });
   it("retains an existing native fullscreen window after leaving the reader", async () => {
     mock.fullscreen = true;
