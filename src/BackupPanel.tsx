@@ -28,6 +28,9 @@ export type BackupCounts = {
   projectMilestones?: number;
   reviewedMilestones?: number;
   projectEvidenceNotes?: number;
+  credentialItems?: number;
+  completedCredentials?: number;
+  credentialEvidenceNotes?: number;
 };
 export type BackupPreview = {
   previewToken: string;
@@ -67,10 +70,12 @@ const date = (value: string | null) =>
 export default function BackupPanel({
   unsavedNotes = 0,
   unsavedProjectDrafts = 0,
+  unsavedCredentialDrafts = 0,
   otherOperationBusy = false,
 }: {
   unsavedNotes?: number;
   unsavedProjectDrafts?: number;
+  unsavedCredentialDrafts?: number;
   otherOperationBusy?: boolean;
 }) {
   const focus = useFocus();
@@ -286,8 +291,8 @@ export default function BackupPanel({
           <h3>Save a local backup</h3>
           <p>
             Choose where to save a consistent SQLite snapshot: progress, notes,
-            PDFs, quiz and review history, project evidence, and confirmed focus
-            time.
+            PDFs, quiz and review history, project and course evidence, and
+            confirmed focus time.
           </p>
           <button
             className="secondary-button"
@@ -339,6 +344,14 @@ export default function BackupPanel({
         <p className="backup-draft-warning">
           A focus session is active. Exports include confirmed checkpoints only;
           finish this session before restoring.
+        </p>
+      )}
+      {unsavedCredentialDrafts > 0 && (
+        <p className="backup-draft-warning">
+          {unsavedCredentialDrafts} personal course{" "}
+          {unsavedCredentialDrafts === 1 ? "plan has" : "plans have"} unsaved
+          status, date, or evidence drafts. Only saved course records are
+          exported; restoring discards these drafts.
         </p>
       )}
       {unsavedProjectDrafts > 0 && (
@@ -439,6 +452,26 @@ export default function BackupPanel({
                     value: preview!.counts.reviewTopics,
                   },
                   { label: "Saved XP", value: preview!.counts.totalXp },
+                  ...(preview!.counts.credentialItems !== undefined
+                    ? [
+                        {
+                          label: "Course tracking records",
+                          value: preview!.counts.credentialItems,
+                        },
+                        {
+                          label: "Plans self-reported complete",
+                          value:
+                            preview!.counts.completedCredentials ??
+                            "Unavailable",
+                        },
+                        {
+                          label: "Course evidence notes",
+                          value:
+                            preview!.counts.credentialEvidenceNotes ??
+                            "Unavailable",
+                        },
+                      ]
+                    : []),
                   ...(preview!.counts.projectMilestones !== undefined
                     ? [
                         {
@@ -488,6 +521,15 @@ export default function BackupPanel({
                   You currently have {unsavedNotes} unsaved note{" "}
                   {unsavedNotes === 1 ? "draft" : "drafts"}. Restoring and
                   restarting discards them.
+                </p>
+              )}
+              {unsavedCredentialDrafts > 0 && (
+                <p className="backup-draft-warning">
+                  You also have {unsavedCredentialDrafts} personal course{" "}
+                  {unsavedCredentialDrafts === 1
+                    ? "plan with unsaved changes"
+                    : "plans with unsaved changes"}
+                  . These drafts are discarded by restore.
                 </p>
               )}
               {unsavedProjectDrafts > 0 && (

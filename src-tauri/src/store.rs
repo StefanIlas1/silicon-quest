@@ -176,7 +176,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 6 {
+        if version > 7 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -216,6 +216,12 @@ impl Store {
             tx.pragma_update(None, "user_version", 6)?;
             tx.commit()?;
         }
+        if version < 7 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/007_credential_tracking.sql"))?;
+            tx.pragma_update(None, "user_version", 7)?;
+            tx.commit()?;
+        }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
         let tx = conn.transaction()?;
         for book in curriculum["books"]
@@ -235,6 +241,7 @@ impl Store {
             )?;
         }
         crate::projects::seed(&tx, &curriculum)?;
+        crate::credentials::seed(&tx, &curriculum)?;
         tx.commit()?;
         let focus = crate::focus::FocusRuntime::initialize(&conn, lock, owner)?;
         let data_epoch = crate::backup::read_epoch(&conn)?;
@@ -257,6 +264,40 @@ impl Store {
             ));
         }
         crate::backup::ensure_epoch(&self.conn, &self.data_epoch)
+    }
+    pub fn get_credential_summary(&self) -> Result<crate::credentials::CredentialSummary> {
+        crate::credentials::summary(&self.conn)
+    }
+    pub fn save_credential_progress(
+        &mut self,
+        id: &str,
+        status: &str,
+        target: Option<&str>,
+        note: &str,
+        reference: &str,
+        confirmed: bool,
+        expected: i64,
+        request: &str,
+    ) -> Result<crate::credentials::CredentialMutationResult> {
+        self.ensure_available()?;
+        let _gate = crate::backup::shared_gate(self.write_gate.as_ref())?;
+        let effect = crate::credentials::save(
+            &mut self.conn,
+            &self.data_epoch,
+            id,
+            status,
+            target,
+            note,
+            reference,
+            confirmed,
+            expected,
+            request,
+        )?;
+        Ok(crate::credentials::CredentialMutationResult {
+            summary: self.get_credential_summary()?,
+            credential_id: effect.credential_id,
+            replayed: effect.replayed,
+        })
     }
     pub fn get_project_summary(&self) -> Result<crate::projects::ProjectSummary> {
         crate::projects::summary(&self.conn)
@@ -1048,7 +1089,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {

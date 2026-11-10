@@ -56,3 +56,15 @@ for project_id in project_ids:
     assert len(exit_reviews) == 1 and exit_reviews[0]['optional'] is False
 assert len(seed['projects']) == 4
 print(f"Validated {len(seed['projectMilestones'])} roadmap project milestones and {len(task_ids)} unearned child-task definitions.")
+
+credential_kinds = {
+    'cuda-dli': ('course_certificate', False),
+    'fpga-specialization': ('specialization_certificate', False),
+    'nvidia-associate': ('formal_certification', True),
+    'nvidia-modules': ('optional_coursework', True),
+}
+assert {item['id'] for item in seed['credentials']} == set(credential_kinds)
+for credential in seed['credentials']:
+    assert (credential['category'], credential['optional']) == credential_kinds[credential['id']]
+    assert not {'status', 'targetDate', 'completedAt', 'evidenceNote', 'evidenceReference'} & set(credential)
+print('Validated four roadmap credential categories with no personal completion claims.')

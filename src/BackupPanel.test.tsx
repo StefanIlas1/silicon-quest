@@ -89,6 +89,37 @@ async function confirm() {
   fireEvent.click(screen.getByRole("button", { name: "Replace local data" }));
 }
 describe("explicit local backups", () => {
+  it("labels backed-up course completions as personal reports and warns about course drafts separately", async () => {
+    const implementation = mock.invoke.getMockImplementation()!;
+    mock.invoke.mockImplementation(async (name, args) =>
+      name === "inspect_local_backup"
+        ? {
+            ...preview,
+            counts: {
+              ...preview.counts,
+              credentialItems: 4,
+              completedCredentials: 1,
+              credentialEvidenceNotes: 2,
+            },
+          }
+        : implementation(name, args),
+    );
+    render(<BackupPanel unsavedCredentialDrafts={2} />);
+    expect(
+      screen.getByText(
+        /2 personal course plans have unsaved status, date, or evidence drafts/,
+      ),
+    ).toBeTruthy();
+    await inspect();
+    expect(screen.getByText("Course tracking records")).toBeTruthy();
+    expect(screen.getByText("Plans self-reported complete")).toBeTruthy();
+    expect(screen.getByText("Course evidence notes")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "You also have 2 personal course plans with unsaved changes. These drafts are discarded by restore.",
+      ),
+    ).toBeTruthy();
+  });
   it("distinguishes project evidence records and unsaved project drafts from topic notes", async () => {
     const implementation = mock.invoke.getMockImplementation()!;
     mock.invoke.mockImplementation(async (name, args) =>

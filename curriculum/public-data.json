@@ -1517,7 +1517,9 @@
       "kind": "Course Certificate of Competency",
       "description": "Approximately 8 hours; competency credential requires satisfying course assessment requirements.",
       "url": "https://www.nvidia.com/en-us/learn/learning-path/accelerated-computing/",
-      "budgetNote": "US$90 in the May 2026 PDF; availability, assessment and checkout price must be rechecked."
+      "budgetNote": "US$90 in the May 2026 PDF; availability, assessment and checkout price must be rechecked.",
+      "category": "course_certificate",
+      "optional": false
     },
     {
       "id": "fpga-specialization",
@@ -1528,7 +1530,9 @@
       "kind": "Specialization completion certificate",
       "description": "University-issued completion certificate, not an AMD professional certificate. Some material uses Intel/Quartus/Nios II; transfer fundamentals to AMD/PYNQ.",
       "url": "https://www.coursera.org/specializations/fpga-design",
-      "budgetNote": "Planning assumption: US$59/month for 2–4 months (US$118–236); verify local pricing and eligibility."
+      "budgetNote": "Planning assumption: US$59/month for 2–4 months (US$118–236); verify local pricing and eligibility.",
+      "category": "specialization_certificate",
+      "optional": false
     },
     {
       "id": "nvidia-associate",
@@ -1539,7 +1543,9 @@
       "kind": "Formal certification exam",
       "description": "Role-dependent GPU infrastructure/operations credential; less directly aligned with CUDA kernel development.",
       "url": "https://www.nvidia.com/en-us/learn/certification/ai-infrastructure-operations-associate/",
-      "budgetNote": "Earlier PDF: US$50 fundamentals + US$125 exam; verify current requirements and prices."
+      "budgetNote": "Earlier PDF: US$50 fundamentals + US$125 exam; verify current requirements and prices.",
+      "category": "formal_certification",
+      "optional": true
     },
     {
       "id": "nvidia-modules",
@@ -1550,7 +1556,9 @@
       "kind": "Additional coursework",
       "description": "C++ standard-library GPU acceleration/scaling; CUDA ML profiling; Nsight Systems pipelines; custom Python analysis scripts.",
       "url": "https://www.nvidia.com/en-us/learn/learning-path/accelerated-computing/",
-      "budgetNote": "May 2026 PDF listed US$30 each, up to US$150 total. Verify current availability and pricing."
+      "budgetNote": "May 2026 PDF listed US$30 each, up to US$150 total. Verify current availability and pricing.",
+      "category": "optional_coursework",
+      "optional": true
     }
   ],
   "modules": [

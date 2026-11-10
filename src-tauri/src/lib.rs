@@ -1,4 +1,5 @@
 pub mod backup;
+pub mod credentials;
 pub mod focus;
 pub mod projects;
 pub mod review;
@@ -305,6 +306,37 @@ mod desktop {
             store.reopen_project_milestone(&milestone_id, &reason, expected_version, &request_id)
         })
     }
+    #[tauri::command]
+    fn get_credential_summary(
+        state: State<'_, AppState>,
+    ) -> Result<crate::credentials::CredentialSummary> {
+        with_store(state, |store| store.get_credential_summary())
+    }
+    #[tauri::command]
+    fn save_credential_progress(
+        state: State<'_, AppState>,
+        credential_id: String,
+        status: String,
+        target_date: Option<String>,
+        evidence_note: String,
+        evidence_reference: String,
+        confirm_completed: bool,
+        expected_version: i64,
+        request_id: String,
+    ) -> Result<crate::credentials::CredentialMutationResult> {
+        with_store(state, |store| {
+            store.save_credential_progress(
+                &credential_id,
+                &status,
+                target_date.as_deref(),
+                &evidence_note,
+                &evidence_reference,
+                confirm_completed,
+                expected_version,
+                &request_id,
+            )
+        })
+    }
     pub fn run() {
         tauri::Builder::default()
             .plugin(tauri_plugin_dialog::init())
@@ -359,7 +391,9 @@ mod desktop {
                 get_project_summary,
                 save_project_milestone,
                 review_project_milestone,
-                reopen_project_milestone
+                reopen_project_milestone,
+                get_credential_summary,
+                save_credential_progress
             ])
             .run(tauri::generate_context!())
             .expect("Silicon Quest could not initialize its local desktop window");

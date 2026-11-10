@@ -1,6 +1,6 @@
 # Local backup and restore
 
-Settings can export a standalone SQLite copy of saved learning data, including imported PDF bytes, notes, reading status, quiz attempts, XP, reader positions/bookmarks, focus checkpoints, review schedules and saved project/task evidence with action history. Unsaved note/project drafts and the live timer's unconfirmed interval are not included. Save drafts before exporting.
+Settings can export a standalone SQLite copy of saved learning data. It includes imported PDFs, notes, reading/quiz/XP records, reader positions/bookmarks, focus checkpoints, review schedules, project evidence/history and personal course/credential reports. Unsaved note/project/course drafts and the live timer's unconfirmed interval are not included. Save drafts before exporting.
 
 Backups are **not encrypted** and have no password protection. The app performs local file operations without a cloud-transfer service. You choose the destination; an operating-system synced or shared folder may distribute that file independently of Silicon Quest. Treat the copy as private study material, including any licensed PDFs it contains.
 
@@ -14,7 +14,7 @@ An active focus session is exported at its last confirmed checkpoint. Restoring 
 
 ## Inspect before replacing
 
-Choose **Choose backup to inspect**. This does not replace current learning data. The backend copies the selected file into a private staging directory and validates the complete schema, supported application identity, integrity, foreign keys and asset limits. Unexpected tables, triggers and views are rejected. Database schema revisions 1–6 are supported; this is a schema range, not a list of app release versions.
+Choose **Choose backup to inspect**. This does not replace current learning data. The backend copies the selected file into a private staging directory and validates the complete schema, supported application identity, integrity, foreign keys and asset limits. Unexpected tables, triggers and views are rejected. Database schema revisions 1–7 are supported; this is a schema range, not a list of app release versions.
 
 Older supported databases are migrated only in staging. The original selected file remains unchanged. The preview shows the staged file's saved contents and source/current schema revisions. It lasts 15 minutes; changing the original file after inspection does not change the prepared copy. Inspect again to prepare another version.
 

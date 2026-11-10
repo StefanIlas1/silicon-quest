@@ -42,9 +42,13 @@ A first graded check starts a persisted review schedule for its curated topic. E
 
 The four roadmap projects have 35 milestones and 75 child tasks, with optional work separated from required completion. Save concrete evidence, then explicitly self-review against the definition of done; each project also requires a whole-project exit review. This records your review, not independent verification. Reading, timers, quiz passes and Git activity never complete portfolio work automatically. See [project evidence](docs/PROJECTS.md) for scope, versions, history and one-time rewards.
 
+## Courses and credentials
+
+Track the roadmap’s four course/credential plans with personal status, calendar target dates and saved evidence references. Completion is self-reported, not an app-issued or externally verified award, and earns no XP/mastery. Source categories distinguish course certificates, the specialization, the optional formal exam and optional coursework. See [personal credential plans](docs/CREDENTIALS.md) for taxonomy, privacy and history.
+
 ## Backups
 
-Settings can export a standalone SQLite backup, including saved PDFs and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note and project drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
+Settings can export a standalone SQLite backup, including saved PDFs and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note, project and course drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
 
 ## Curriculum and privacy
 

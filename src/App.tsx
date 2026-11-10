@@ -52,6 +52,8 @@ import { nextReadingTopic } from "./recommendation";
 import BackupPanel from "./BackupPanel";
 import ProjectPage from "./ProjectPage";
 import { useProjects } from "./ProjectProvider";
+import CredentialPage from "./CredentialPage";
+import { useCredentials } from "./CredentialProvider";
 const Reader = lazy(() => import("./Reader"));
 type Page =
   | "dashboard"
@@ -60,6 +62,7 @@ type Page =
   | "projects"
   | "achievements"
   | "settings"
+  | "credentials"
   | "focus"
   | "reviews"
   | "reader";
@@ -70,6 +73,7 @@ const nav: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: "roadmap", label: "Learning path", icon: Map },
   { id: "projects", label: "Projects", icon: FolderGit2 },
   { id: "focus", label: "Focus log", icon: Clock3 },
+  { id: "credentials", label: "Courses", icon: GraduationCap },
   { id: "reviews", label: "Review queue", icon: Repeat2 },
   { id: "achievements", label: "Achievements", icon: Trophy },
 ];
@@ -84,6 +88,7 @@ const trackClass = (track: string) =>
 export default function App() {
   const reviews = useReview();
   const projectState = useProjects();
+  const credentialState = useCredentials();
   const dashboardGeneration = useRef(0);
   const [page, setPage] = useState<Page>("dashboard");
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
@@ -102,7 +107,12 @@ export default function App() {
   );
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [appBusy, setBusy] = useState(false);
-  const busy = appBusy || projectState.busy || projectState.pending;
+  const busy =
+    appBusy ||
+    projectState.busy ||
+    projectState.pending ||
+    credentialState.busy ||
+    credentialState.pending;
   function acceptDashboard(next: Dashboard) {
     ++dashboardGeneration.current;
     setDashboard(next);
@@ -358,6 +368,20 @@ export default function App() {
             </span>
             <button className="text-button" onClick={() => setPage("projects")}>
               Return to Projects
+            </button>
+          </div>
+        )}
+        {credentialState.pending && !credentialState.busy && (
+          <div className="preview-banner warning">
+            <span>
+              A personal course update needs confirmation before further saved
+              changes.
+            </span>
+            <button
+              className="text-button"
+              onClick={() => setPage("credentials")}
+            >
+              Return to Courses
             </button>
           </div>
         )}
@@ -799,7 +823,15 @@ export default function App() {
                 title="Four projects. Real depth."
                 description="Portfolio work built around correctness, controlled experiments, and reproducible results."
               />
-              <ProjectPage otherBusy={appBusy || loading || !connected} />
+              <ProjectPage
+                otherBusy={
+                  appBusy ||
+                  credentialState.busy ||
+                  credentialState.pending ||
+                  loading ||
+                  !connected
+                }
+              />
               <section className="panel measurement-panel">
                 <h2>The measurement contract</h2>
                 <p>
@@ -892,6 +924,17 @@ export default function App() {
               </section>
             </>
           )}
+          {page === "credentials" && (
+            <CredentialPage
+              otherBusy={
+                appBusy ||
+                projectState.busy ||
+                projectState.pending ||
+                loading ||
+                !connected
+              }
+            />
+          )}
           {page === "focus" && <FocusPage />}
           {page === "reviews" && (
             <ReviewPage
@@ -916,6 +959,7 @@ export default function App() {
               <BackupPanel
                 otherOperationBusy={busy}
                 unsavedProjectDrafts={projectState.unsavedDraftCount}
+                unsavedCredentialDrafts={credentialState.unsavedDraftCount}
                 unsavedNotes={
                   Object.entries(noteDrafts).filter(
                     ([id, body]) =>
@@ -961,19 +1005,20 @@ export default function App() {
                     from the plan need verification before purchasing.
                   </p>
                   {credentials.map((c) => (
-                    <a
+                    <button
                       className="credential-link"
                       key={c.id}
-                      href={c.url}
-                      target="_blank"
-                      rel="noreferrer"
+                      onClick={() => {
+                        credentialState.select(c.id);
+                        setPage("credentials");
+                      }}
                     >
                       <span>
                         {c.title}
                         <small>{c.kind}</small>
                       </span>
                       <ArrowRight size={15} />
-                    </a>
+                    </button>
                   ))}
                 </section>
               </div>

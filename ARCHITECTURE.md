@@ -29,6 +29,8 @@ Migration 5 adds application/workspace identity and [backup/restore](docs/BACKUP
 
 Migration 6 adds [project evidence tracking](docs/PROJECTS.md): four canonical plans, 35 milestone definitions, 75 child tasks, versioned saved state and immutable self-review snapshots. Completion requires saved evidence, explicit acknowledgement and an exit review after required work; no source, reading, timer or quiz activity fabricates project progress. Definition changes invalidate readiness/completion as needed, and optional stretches remain outside baseline completion. Project mutations and backups use the same restore gates/epochs as other learning data.
 
+Migration 7 adds [personal course/credential tracking](docs/CREDENTIALS.md) for four stable roadmap identities with explicit taxonomy, calendar targets, notes/plain references and immutable report snapshots. Completion is self-reported and changes no XP, quiz mastery or project evidence. Metadata updates version records without revoking personal reports. Saved state/history round-trip in backups; course drafts participate in restore warnings and root-provider teardown.
+
 ## Publication boundary
 
 Only source, curriculum, lockfiles and documentation belong in Git. `.gitignore` excludes personal material, database files, PDFs, secrets and generated output. Before any push, inspect the staged files, run required checks and confirm no private study data has entered the index.

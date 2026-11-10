@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-const CURRENT_SCHEMA: i64 = 6;
+const CURRENT_SCHEMA: i64 = 7;
 const APPLICATION_ID: i64 = 1397836881;
 const MAX_BACKUP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const PREVIEW_LIFETIME: Duration = Duration::from_secs(15 * 60);
@@ -42,6 +42,9 @@ pub struct BackupCounts {
     pub project_milestones: i64,
     pub reviewed_milestones: i64,
     pub project_evidence_notes: i64,
+    pub credential_items: i64,
+    pub completed_credentials: i64,
+    pub credential_evidence_notes: i64,
 }
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -236,6 +239,7 @@ fn reference_schema(version: i64) -> Result<Connection> {
         include_str!("../migrations/004_spaced_review.sql"),
         include_str!("../migrations/005_backup_identity.sql"),
         include_str!("../migrations/006_project_tracking.sql"),
+        include_str!("../migrations/007_credential_tracking.sql"),
     ]
     .into_iter()
     .take(version as usize)
@@ -254,7 +258,7 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
     conn.pragma_update(None, "query_only", true)?;
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if !(1..=CURRENT_SCHEMA).contains(&version) {
-        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–6; newer schemas require a newer app."));
+        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–7; newer schemas require a newer app."));
     }
     let app_id: i64 = conn.pragma_query_value(None, "application_id", |r| r.get(0))?;
     if (version >= 5 && app_id != APPLICATION_ID)
@@ -391,6 +395,35 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
         }
         if conn.query_row("SELECT count(*) FROM project_milestone_state WHERE length(CAST(evidence_note AS BLOB))>20000 OR length(CAST(review_note AS BLOB))>10000",[],|r|r.get::<_,i64>(0))?>0 {return Err(invalid("This backup contains oversized project evidence."));}
     }
+    if version >= 7 {
+        let identities = crate::credentials::identities();
+        let mut statement =
+            conn.prepare("SELECT id,category,optional FROM credential_definitions")?;
+        for definition in statement.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, bool>(2)?,
+            ))
+        })? {
+            let (id, category, optional) = definition?;
+            if !identities
+                .iter()
+                .any(|(known, kind, flag)| *known == id && *kind == category && *flag == optional)
+            {
+                return Err(invalid(
+                    "This backup contains unsupported or misclassified credentials.",
+                ));
+            }
+        }
+        if conn.query_row("SELECT count(*) FROM credential_actions", [], |r| {
+            r.get::<_, i64>(0)
+        })? > 1_000_000
+        {
+            return Err(invalid("This backup exceeds the credential history limit."));
+        }
+        if conn.query_row("SELECT count(*) FROM credential_progress WHERE length(CAST(evidence_note AS BLOB))>20000 OR length(CAST(evidence_reference AS BLOB))>2048",[],|r|r.get::<_,i64>(0))?>0 {return Err(invalid("This backup contains oversized credential evidence."));}
+    }
     if version >= 5 {
         let epoch = read_epoch(&conn)?;
         if epoch.len() != 32 || !epoch.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -451,6 +484,9 @@ fn counts(conn: &Connection) -> Result<BackupCounts> {
             conn,
             "SELECT count(*) FROM project_milestone_state WHERE length(trim(evidence_note))>0",
         )?,
+        credential_items:scalar(conn,"SELECT count(*) FROM credential_progress")?,
+        completed_credentials:scalar(conn,"SELECT count(*) FROM credential_progress WHERE status='completed'")?,
+        credential_evidence_notes:scalar(conn,"SELECT count(*) FROM credential_progress WHERE length(trim(evidence_note))>0 OR length(trim(evidence_reference))>0")?,
     })
 }
 fn write_snapshot(source: &Connection, destination: &Path) -> Result<ExportReport> {
@@ -567,6 +603,8 @@ impl Store {
         candidate.get_focus_summary()?;
         candidate.get_project_summary()?;
         crate::projects::validate_integrity(&candidate.conn)?;
+        candidate.get_credential_summary()?;
+        crate::credentials::validate_integrity(&candidate.conn)?;
         validate(&staged)?;
         let preview_token: String =
             self.conn
@@ -1213,6 +1251,127 @@ mod tests {
                 .completed_required_milestones,
             0
         );
+        assert_eq!(store.dashboard().unwrap().total_xp, 120);
+    }
+    #[test]
+    fn credential_reports_dates_references_history_and_restore_fences_round_trip() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut store = populated(directory.path());
+        let evidence="The personal course completion record is in my study binder and the reference below; this is not independent verification.";
+        store
+            .save_credential_progress(
+                "cuda-dli",
+                "completed",
+                Some("2027-02-28"),
+                evidence,
+                "./private-course-record.pdf",
+                true,
+                0,
+                "backup-credential-report",
+            )
+            .unwrap();
+        let reported = store
+            .get_credential_summary()
+            .unwrap()
+            .items
+            .into_iter()
+            .find(|c| c.credential_id == "cuda-dli")
+            .unwrap()
+            .completed_at;
+        let file = directory.path().join("credentials.sqlite3");
+        store.export_backup_file(&file).unwrap();
+        store
+            .save_credential_progress(
+                "cuda-dli",
+                "on_hold",
+                None,
+                "Rechecking my notes",
+                "",
+                false,
+                1,
+                "backup-credential-reopen",
+            )
+            .unwrap();
+        let preview = store.inspect_backup_file(&file).unwrap();
+        assert_eq!(preview.counts.credential_items, 4);
+        assert_eq!(preview.counts.completed_credentials, 1);
+        assert_eq!(preview.counts.credential_evidence_notes, 1);
+        assert_eq!(preview.counts.total_xp, 120);
+        let mut observer = open(directory.path(), "live.sqlite3");
+        store.restore_backup(&preview.preview_token).unwrap();
+        assert_eq!(
+            store
+                .save_credential_progress(
+                    "cuda-dli",
+                    "in_progress",
+                    None,
+                    "Queued note",
+                    "",
+                    false,
+                    2,
+                    "queued-credential-save"
+                )
+                .unwrap_err()
+                .code,
+            "restart_required"
+        );
+        assert_eq!(
+            observer
+                .save_credential_progress(
+                    "cuda-dli",
+                    "in_progress",
+                    None,
+                    "Stale note",
+                    "",
+                    false,
+                    2,
+                    "stale-credential-save"
+                )
+                .unwrap_err()
+                .code,
+            "workspace_replaced"
+        );
+        drop(observer);
+        drop(store);
+        let restored = open(directory.path(), "live.sqlite3");
+        let summary = restored.get_credential_summary().unwrap();
+        let item = summary
+            .items
+            .iter()
+            .find(|c| c.credential_id == "cuda-dli")
+            .unwrap();
+        assert_eq!(item.status, "completed");
+        assert_eq!(item.completed_at, reported);
+        assert_eq!(item.target_date.as_deref(), Some("2027-02-28"));
+        assert_eq!(item.evidence_note, evidence);
+        assert_eq!(item.evidence_reference, "./private-course-record.pdf");
+        assert_eq!(summary.history.len(), 1);
+        assert_eq!(restored.dashboard().unwrap().total_xp, 120);
+    }
+    #[test]
+    fn malformed_credential_dates_reports_and_classification_are_rejected_before_restore() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut store = populated(directory.path());
+        let file = directory.path().join("credentials-invalid.sqlite3");
+        store.export_backup_file(&file).unwrap();
+        {
+            let conn = Connection::open(&file).unwrap();
+            conn.execute("UPDATE credential_progress SET target_date='2027-02-29' WHERE credential_id='cuda-dli'",[]).unwrap();
+        }
+        assert!(store.inspect_backup_file(&file).is_err());
+        store.export_backup_file(&file).unwrap();
+        {
+            let conn = Connection::open(&file).unwrap();
+            conn.execute("UPDATE credential_progress SET status='completed',completed_at='2026-11-10T10:00:00Z',evidence_note='A long note with no matching explicit self-report record' WHERE credential_id='cuda-dli'",[]).unwrap();
+        }
+        assert!(store.inspect_backup_file(&file).is_err());
+        store.export_backup_file(&file).unwrap();
+        {
+            let conn = Connection::open(&file).unwrap();
+            conn.execute("UPDATE credential_definitions SET category='formal_certification' WHERE id='cuda-dli'",[]).unwrap();
+        }
+        assert!(store.inspect_backup_file(&file).is_err());
+        assert_eq!(store.get_credential_summary().unwrap().completed_count, 0);
         assert_eq!(store.dashboard().unwrap().total_xp, 120);
     }
     #[test]

@@ -4747,6 +4747,626 @@ button.project-card:hover {
   line-height: 1.9;
   margin: 10px 0 15px;
 }
+
+button.credential-link {
+  width: 100%;
+  text-align: left;
+}
+.credential-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 17px;
+  margin: 27px 0 22px;
+}
+.credential-stats .panel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 15px;
+  align-items: center;
+  background: linear-gradient(125deg, #1c2332, #141b26);
+}
+.credential-stats svg {
+  color: #aa9bc9;
+}
+.credential-stats strong {
+  font:
+    500 30px Manrope,
+    sans-serif;
+  letter-spacing: -0.7px;
+  color: #cdbfe2;
+  text-align: right;
+}
+.credential-stats strong small {
+  font:
+    11px "DM Sans",
+    sans-serif;
+  color: #706888;
+  margin-left: 8px;
+  letter-spacing: 0;
+}
+.credential-stats .panel > span {
+  grid-column: 1/-1;
+  font-size: 7px;
+  letter-spacing: 0.8px;
+  color: #807597;
+  line-height: 1.9;
+}
+.credential-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 17px 20px;
+  border: 1px solid #4c405d;
+  background: #2b243955;
+  border-radius: 7px;
+  color: #a191b7;
+  margin: 23px 0;
+}
+.credential-scope > svg {
+  margin-top: 2px;
+}
+.credential-scope p {
+  font-size: 10px;
+  line-height: 1.9;
+}
+.credential-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.85fr) minmax(0, 1.4fr);
+  gap: 22px;
+  align-items: start;
+  margin-top: 25px;
+}
+.credential-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+}
+.credential-plan-list > button {
+  text-align: left;
+  padding: 20px 18px;
+  background: #151e2b;
+  border: 1px solid #2c4056;
+  border-radius: 8px;
+}
+.credential-plan-list > button.selected {
+  border-color: #75628e;
+  background: linear-gradient(125deg, #30273e, #192333);
+}
+.credential-plan-list .eyebrow {
+  font-size: 6px;
+  letter-spacing: 0.8px;
+  color: #8f80a7;
+}
+.credential-plan-list h2 {
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.7;
+  margin-top: 11px;
+  letter-spacing: -0.2px;
+  color: #bfcee0;
+}
+.credential-plan-list p {
+  font-size: 9px;
+  line-height: 1.9;
+  color: #6f89a4;
+  margin-top: 8px;
+}
+.credential-plan-list > button > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #8a80a0;
+  font-size: 8px;
+  line-height: 1.9;
+  margin-top: 13px;
+}
+.credential-plan-list small {
+  font-size: 8px;
+  line-height: 1.9;
+  color: #536f8b;
+  display: block;
+  margin-top: 11px;
+  border-top: 1px solid #2c3b4d;
+  padding-top: 10px;
+}
+.credential-plan-list small.reported-complete {
+  color: #91b99f;
+}
+.credential-editor {
+  padding: 25px;
+  border-color: #3c4c62;
+  background: #151f2c;
+}
+.credential-editor .eyebrow {
+  font-size: 7px;
+  letter-spacing: 0.8px;
+  color: #aa9ac2;
+}
+.credential-editor .small-tag {
+  font-size: 7px;
+}
+.credential-editor > h2 {
+  font-size: 23px;
+  font-weight: 550;
+  line-height: 1.6;
+  letter-spacing: -0.5px;
+  margin-top: 18px;
+}
+.credential-editor > .credential-provider {
+  font-size: 10px;
+  color: #8ba3be;
+  line-height: 1.9;
+  margin-top: 11px;
+}
+.credential-editor > p {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #718ca7;
+  margin-top: 15px;
+}
+.credential-plan-window {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #23374a66;
+  border: 1px solid #3b5167;
+  border-radius: 5px;
+  color: #89a7bf;
+  font-size: 9px;
+  line-height: 1.9;
+  margin-top: 20px;
+}
+.credential-plan-window svg {
+  margin-top: 2px;
+}
+.credential-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  border-top: 1px solid #32475d;
+  padding-top: 23px;
+  margin-top: 24px;
+}
+.credential-form-row > label {
+  display: block;
+  font-size: 9px;
+  color: #8ea9c2;
+  line-height: 1.9;
+}
+.credential-form-row select,
+.credential-form-row input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 9px;
+  background: #22364b;
+  border: 1px solid #3b5873;
+  border-radius: 5px;
+  color: #bdd3e6;
+  font-size: 10px;
+  margin-top: 9px;
+  color-scheme: dark;
+}
+.credential-evidence-label {
+  display: block;
+  margin-top: 24px;
+  font-size: 11px;
+  color: #bdd3e6;
+  line-height: 1.8;
+}
+.credential-evidence-label > svg {
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+.credential-evidence-label textarea {
+  display: block;
+  resize: vertical;
+  width: 100%;
+  min-height: 170px;
+  max-height: 550px;
+  padding: 12px;
+  background: #0e1927;
+  border: 1px solid #36516c;
+  border-radius: 5px;
+  color: #b0cae0;
+  font-size: 11px;
+  line-height: 1.9;
+  margin-top: 12px;
+}
+.credential-evidence-label textarea::placeholder,
+.credential-reference-label input::placeholder {
+  color: #466681;
+}
+.credential-reference-label {
+  display: block;
+  font-size: 10px;
+  color: #9cb9d1;
+  line-height: 1.9;
+  margin-top: 21px;
+}
+.credential-reference-label small {
+  display: block;
+  font-size: 8px;
+  line-height: 1.8;
+  color: #577692;
+  margin-top: 4px;
+}
+.credential-reference-label input {
+  width: 100%;
+  display: block;
+  padding: 11px;
+  background: #0e1927;
+  border: 1px solid #36516c;
+  border-radius: 5px;
+  color: #aac4db;
+  font-size: 10px;
+  margin-top: 11px;
+}
+.credential-completion-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 15px;
+  background: #30293e66;
+  border: 1px solid #61506f;
+  border-radius: 6px;
+  color: #b6a6cc;
+  font-size: 10px;
+  line-height: 1.9;
+  margin-top: 23px;
+  cursor: pointer;
+}
+.credential-completion-ack input {
+  margin: 4px 0 0;
+  accent-color: #a3d7db;
+  flex-shrink: 0;
+}
+.credential-editor > .primary-button {
+  margin-top: 21px;
+  font-size: 10px;
+  padding: 12px 15px;
+}
+.credential-editor > .credential-reported-at {
+  font-size: 9px;
+  line-height: 1.9;
+  color: #7ea88d;
+  background: #273c3066;
+  border: 1px solid #496650;
+  border-radius: 5px;
+  padding: 13px;
+  margin-top: 20px;
+}
+.credential-editor > .credential-validation,
+.credential-editor > .credential-past-target {
+  font-size: 9px;
+  line-height: 1.9;
+  color: #b9a07e;
+  background: #3c302444;
+  border: 1px solid #65513a;
+  border-radius: 5px;
+  padding: 11px 13px;
+  margin-top: 17px;
+}
+.credential-source {
+  border-top: 1px solid #34485d;
+  padding-top: 22px;
+  margin-top: 26px;
+}
+.credential-source h3 {
+  font-size: 11px;
+  font-weight: 500;
+  color: #99b5ce;
+}
+.credential-source code {
+  font-size: 9px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  user-select: all;
+  color: #6f91ad;
+  background: #112131;
+  border: 1px solid #2c455b;
+  border-radius: 4px;
+  padding: 10px;
+  display: block;
+  margin-top: 10px;
+}
+.credential-source p {
+  font-size: 10px;
+  line-height: 1.9;
+  color: #897b9c;
+  margin-top: 15px;
+}
+.credential-source small {
+  display: block;
+  font-size: 8px;
+  line-height: 1.9;
+  color: #655a78;
+  margin-top: 10px;
+}
+.credential-history {
+  margin-top: 25px;
+}
+.credential-history h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 15px;
+}
+.credential-history .small-tag {
+  font-size: 7px;
+}
+.credential-history details {
+  border-top: 1px solid #2e4257;
+  padding-top: 14px;
+  margin-top: 14px;
+}
+.credential-history summary {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+.credential-history summary::-webkit-details-marker {
+  display: none;
+}
+.credential-history summary > span {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.8;
+  color: #a2bdd3;
+}
+.credential-history summary small {
+  display: block;
+  font-size: 8px;
+  font-weight: 400;
+  color: #577591;
+  line-height: 1.8;
+  margin-top: 6px;
+}
+.credential-history summary > svg {
+  color: #698ea9;
+}
+.credential-history details[open] summary > svg {
+  transform: rotate(90deg);
+}
+.credential-history details > div,
+.credential-editor .project-conflict details {
+  background: #0f1c2b;
+  border: 1px solid #2c435b;
+  padding: 14px;
+  border-radius: 5px;
+  margin-top: 13px;
+}
+.credential-history details > div p,
+.credential-editor .project-conflict details p {
+  font-size: 10px;
+  line-height: 1.9;
+  color: #718fa9;
+  margin: 5px 0 12px;
+}
+.credential-history pre,
+.credential-editor .project-conflict pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.9;
+  color: #8ca7be;
+}
+.credential-history code {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 9px;
+  line-height: 1.9;
+  color: #5d839f;
+  margin: 10px 0;
+}
+@media (max-height: 780px) {
+  .sidebar nav > button {
+    height: 34px;
+  }
+}
+@media (max-height: 730px) {
+  .sidebar-divider,
+  .sidebar-divider + .workspace-label,
+  .sidebar .current-phase {
+    display: none;
+  }
+}
+@media (max-width: 1150px) {
+  .credential-layout {
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.4fr);
+    gap: 17px;
+  }
+  .credential-editor {
+    padding: 21px;
+  }
+  .credential-editor > h2 {
+    font-size: 21px;
+  }
+  .credential-plan-list > button {
+    padding: 17px 14px;
+  }
+  .credential-plan-list h2 {
+    font-size: 12px;
+  }
+  .credential-plan-list > button > div {
+    font-size: 7px;
+  }
+  .credential-stats .panel {
+    padding: 20px;
+  }
+  .credential-stats .panel > span {
+    font-size: 6px;
+    letter-spacing: 0.6px;
+  }
+  .credential-form-row {
+    gap: 12px;
+  }
+  .credential-form-row select,
+  .credential-form-row input {
+    font-size: 9px;
+    padding: 9px 7px;
+  }
+  .credential-editor .small-tag {
+    font-size: 6px;
+    padding: 4px 5px;
+  }
+  .credential-editor .eyebrow {
+    font-size: 6px;
+  }
+}
+@media (max-width: 860px) {
+  .credential-layout {
+    grid-template-columns: 1fr;
+  }
+  .credential-plan-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    position: static;
+    max-height: none;
+    gap: 13px;
+    overflow: visible;
+  }
+  .credential-plan-list h2 {
+    font-size: 12px;
+  }
+  .credential-plan-list small {
+    font-size: 7px;
+  }
+  .credential-editor {
+    padding: 25px;
+  }
+  .credential-editor > h2 {
+    font-size: 24px;
+  }
+  .credential-stats {
+    gap: 12px;
+  }
+  .credential-stats .panel {
+    padding: 17px;
+  }
+  .credential-stats strong {
+    font-size: 25px;
+  }
+  .credential-history .small-tag {
+    display: none;
+  }
+}
+@media (max-width: 620px) {
+  .credential-stats {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+  .credential-stats .panel {
+    grid-template-columns: auto 1fr auto;
+    gap: 13px;
+    padding: 15px 17px;
+  }
+  .credential-stats .panel > span {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 7px;
+  }
+  .credential-stats strong {
+    grid-column: 3;
+    grid-row: 1;
+    font-size: 24px;
+  }
+  .credential-stats .panel svg {
+    width: 17px;
+  }
+  .credential-stats strong small {
+    font-size: 10px;
+  }
+  .credential-scope {
+    padding: 15px;
+    gap: 9px;
+  }
+  .credential-scope p {
+    font-size: 9px;
+  }
+  .credential-plan-list {
+    grid-template-columns: 1fr;
+    gap: 11px;
+  }
+  .credential-plan-list > button {
+    padding: 18px 16px;
+  }
+  .credential-plan-list h2 {
+    font-size: 14px;
+  }
+  .credential-plan-list .eyebrow {
+    font-size: 6px;
+  }
+  .credential-plan-list > button > div {
+    font-size: 8px;
+  }
+  .credential-plan-list small {
+    font-size: 8px;
+  }
+  .credential-editor {
+    padding: 22px 17px;
+  }
+  .credential-editor > h2 {
+    font-size: 21px;
+  }
+  .credential-editor > p {
+    font-size: 10px;
+  }
+  .credential-form-row {
+    grid-template-columns: 1fr;
+    gap: 17px;
+  }
+  .credential-form-row select,
+  .credential-form-row input {
+    font-size: 11px;
+    padding: 10px;
+  }
+  .credential-editor .eyebrow {
+    font-size: 6px;
+  }
+  .credential-plan-window {
+    font-size: 8px;
+  }
+  .credential-evidence-label {
+    font-size: 10px;
+  }
+  .credential-evidence-label textarea {
+    font-size: 10px;
+  }
+  .credential-completion-ack {
+    padding: 13px;
+    gap: 10px;
+    font-size: 9px;
+  }
+  .credential-editor > .primary-button {
+    font-size: 10px;
+  }
+  .credential-history {
+    padding: 21px 17px;
+  }
+  .credential-history h2 {
+    font-size: 13px;
+  }
+  .credential-history summary > span {
+    font-size: 10px;
+  }
+  .credential-history pre {
+    font-size: 9px;
+  }
+  .credential-history summary small {
+    font-size: 7px;
+  }
+}
 @media (max-width: 1150px) {
   .project-detail-grid {
     grid-template-columns: 210px minmax(0, 1fr);

@@ -65,6 +65,16 @@ credentials=[
  dict(id='fpga-specialization',title='FPGA Design for Embedded Systems Specialization',provider='University of Colorado Boulder / Coursera',priority='High',months='8–12',kind='Specialization completion certificate',description='University-issued completion certificate, not an AMD professional certificate. Some material uses Intel/Quartus/Nios II; transfer fundamentals to AMD/PYNQ.',url='https://www.coursera.org/specializations/fpga-design',budgetNote='Planning assumption: US$59/month for 2–4 months (US$118–236); verify local pricing and eligibility.'),
  dict(id='nvidia-associate',title='NVIDIA Certified Associate — AI Infrastructure and Operations',provider='NVIDIA',priority='Optional',months='After core milestones',kind='Formal certification exam',description='Role-dependent GPU infrastructure/operations credential; less directly aligned with CUDA kernel development.',url='https://www.nvidia.com/en-us/learn/certification/ai-infrastructure-operations-associate/',budgetNote='Earlier PDF: US$50 fundamentals + US$125 exam; verify current requirements and prices.'),
  dict(id='nvidia-modules',title='Additional CUDA / Nsight modules',provider='NVIDIA',priority='Optional',months='As project bottlenecks justify',kind='Additional coursework',description='C++ standard-library GPU acceleration/scaling; CUDA ML profiling; Nsight Systems pipelines; custom Python analysis scripts.',url='https://www.nvidia.com/en-us/learn/learning-path/accelerated-computing/',budgetNote='May 2026 PDF listed US$30 each, up to US$150 total. Verify current availability and pricing.')]
+# Roadmap planning categories are not claims that a credential was awarded.
+credential_categories = {
+    'cuda-dli': ('course_certificate', False),
+    'fpga-specialization': ('specialization_certificate', False),
+    'nvidia-associate': ('formal_certification', True),
+    'nvidia-modules': ('optional_coursework', True),
+}
+for credential in credentials:
+    credential['category'], credential['optional'] = credential_categories[credential['id']]
+
 quizQuestions=[]
 def quiz(id,module,prompt,choices,correct,explanation):
     quizQuestions.append(dict(id=id,moduleId=module,prompt=prompt,choices=choices,correctIndex=correct,explanation=explanation))
