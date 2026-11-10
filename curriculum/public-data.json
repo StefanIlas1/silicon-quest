@@ -1,0 +1,977 @@
+{
+  "roadmapMeta": {
+    "title": "Silicon Quest",
+    "source": "curriculum/source-roadmap.md",
+    "sourceTitle": "Performance Engineering Roadmap",
+    "start": "November 2026",
+    "horizon": "15–18 calendar months",
+    "weeklyHours": "8–12 focused hours",
+    "northStar": "Become a hardware-aware performance engineer who designs, measures and optimizes low-level systems across CPUs, NVIDIA GPUs and FPGAs.",
+    "moduleNotice": "Provisional topic modules derived from the roadmap, not verified textbook chapters. Selective study supports projects; completing every book is not required.",
+    "seedProgress": "No milestone is marked complete without implementation evidence.",
+    "trackAllocation": [
+      {
+        "track": "C++ / CPU",
+        "share": 30
+      },
+      {
+        "track": "CUDA / GPU",
+        "share": 35
+      },
+      {
+        "track": "FPGA / RTL",
+        "share": 25
+      },
+      {
+        "track": "AI inference",
+        "share": 10
+      }
+    ],
+    "budget": {
+      "currency": "USD",
+      "coreLow": 258,
+      "coreHigh": 446,
+      "withOptionsHigh": 771,
+      "note": "Historical planning assumptions; excludes tax, commercial books and board/workstation costs. Recheck official prices before purchasing."
+    },
+    "hardwareNotes": [
+      "Apple Silicon supports local C++/Python experiments; native CUDA requires a compatible NVIDIA environment.",
+      "Verify supported x86-64 Linux/Windows Vivado/Vitis/PYNQ versions and board files.",
+      "PYNQ-Z2 is for compact networks; resize based on actual synthesis.",
+      "Verify hls4ml support; modern FINN does not officially target PYNQ-Z2 in this roadmap."
+    ],
+    "firstMonth": [
+      "Week 1: CMake/CTest, compiler/sanitizers, microbenchmark; binary arithmetic and counter testbench.",
+      "Week 2: AoS/SoA and sequential/random experiments; FSM and 8-bit ALU simulation.",
+      "Week 3: allocation, branch prediction and data movement; fixed-point MAC simulation.",
+      "Week 4: technical note with graphs/tests/limitations; engine correctness contract and dated CUDA/FPGA access plan."
+    ]
+  },
+  "books": [
+    {
+      "id": "csapp",
+      "title": "Computer Systems: A Programmer’s Perspective",
+      "authors": "Bryant & O’Hallaron",
+      "focus": "Memory, linking, caches, processes, performance foundations",
+      "hours": [
+        60,
+        90
+      ],
+      "url": "https://csapp.cs.cmu.edu/3e/",
+      "order": 1,
+      "essential": false,
+      "phaseIds": [
+        "phase-1",
+        "phase-2"
+      ],
+      "moduleIds": [
+        "cache-locality",
+        "data-layout",
+        "benchmark-hygiene"
+      ]
+    },
+    {
+      "id": "optimized-cpp",
+      "title": "Optimized C++",
+      "authors": "Kurt Guntheroth",
+      "focus": "C++ performance and allocations",
+      "hours": [
+        25,
+        40
+      ],
+      "url": "https://www.oreilly.com/library/view/optimized-c/9781491922057/",
+      "order": 2,
+      "essential": false,
+      "phaseIds": [
+        "phase-1",
+        "phase-2"
+      ],
+      "moduleIds": [
+        "cpp-lifetime",
+        "allocation",
+        "engine-optimization"
+      ]
+    },
+    {
+      "id": "ostep",
+      "title": "Operating Systems: Three Easy Pieces",
+      "authors": "Arpaci-Dusseau & Arpaci-Dusseau",
+      "focus": "Concurrency, virtual memory, OS behavior",
+      "hours": [
+        20,
+        35
+      ],
+      "url": "https://pages.cs.wisc.edu/~remzi/OSTEP/",
+      "order": 3,
+      "essential": false,
+      "phaseIds": [
+        "phase-1",
+        "phase-2"
+      ],
+      "moduleIds": [
+        "virtual-memory",
+        "concurrency"
+      ]
+    },
+    {
+      "id": "pmpp",
+      "title": "Programming Massively Parallel Processors, 5th ed.",
+      "authors": "Hwu, Kirk & El Hajj",
+      "focus": "CUDA and GPU programming",
+      "hours": [
+        45,
+        70
+      ],
+      "url": "https://shop.elsevier.com/books/programming-massively-parallel-processors/hwu/978-0-443-43900-1",
+      "order": 4,
+      "essential": true,
+      "phaseIds": [
+        "phase-3"
+      ],
+      "moduleIds": [
+        "cuda-model",
+        "cuda-memory",
+        "cuda-reduction-scan",
+        "cuda-gemm"
+      ]
+    },
+    {
+      "id": "quantitative-architecture",
+      "title": "Computer Architecture: A Quantitative Approach",
+      "authors": "Hennessy, Patterson & Kozyrakis",
+      "focus": "Quantitative architecture and accelerators",
+      "hours": [
+        40,
+        60
+      ],
+      "url": null,
+      "order": 5,
+      "essential": false,
+      "phaseIds": [
+        "phase-3",
+        "phase-7"
+      ],
+      "moduleIds": [
+        "architecture-bottlenecks",
+        "architecture-depth"
+      ]
+    },
+    {
+      "id": "digital-design",
+      "title": "Digital Design and Computer Architecture: ARM Edition",
+      "authors": "Harris & Harris",
+      "focus": "Digital logic, RTL, processor datapaths",
+      "hours": [
+        30,
+        45
+      ],
+      "url": "https://pages.hmc.edu/harris/ddca/ddcaarm.html",
+      "order": 6,
+      "essential": true,
+      "phaseIds": [
+        "phase-1",
+        "phase-2",
+        "phase-3",
+        "phase-5"
+      ],
+      "moduleIds": [
+        "rtl-foundations",
+        "fixed-point-mac",
+        "fpga-resources"
+      ]
+    },
+    {
+      "id": "parallel-fpga",
+      "title": "Parallel Programming for FPGAs",
+      "authors": "Kastner, Matai & Neuendorffer",
+      "focus": "HLS, pipelining, memory and hardware optimizations",
+      "hours": [
+        30,
+        45
+      ],
+      "url": "https://kastner.ucsd.edu/hlsbook/",
+      "order": 7,
+      "essential": true,
+      "phaseIds": [
+        "phase-4",
+        "phase-5"
+      ],
+      "moduleIds": [
+        "hls-pipeline",
+        "fir-preprocessing"
+      ]
+    },
+    {
+      "id": "zynq-book",
+      "title": "The Zynq Book",
+      "authors": "Crockett et al.",
+      "focus": "Zynq PS/PL architecture and integration",
+      "hours": [
+        20,
+        30
+      ],
+      "url": "https://www.zynqbook.com/",
+      "order": 8,
+      "essential": true,
+      "phaseIds": [
+        "phase-4",
+        "phase-5"
+      ],
+      "moduleIds": [
+        "zynq-ps-pl",
+        "axi-dma"
+      ]
+    },
+    {
+      "id": "efficient-dnn",
+      "title": "Efficient Processing of Deep Neural Networks",
+      "authors": "Sze, Chen, Yang & Emer",
+      "focus": "Quantization, dataflow, AI hardware efficiency",
+      "hours": [
+        25,
+        40
+      ],
+      "url": "https://eyeriss.mit.edu/",
+      "order": 9,
+      "essential": false,
+      "phaseIds": [
+        "phase-5",
+        "phase-6"
+      ],
+      "moduleIds": [
+        "quantization",
+        "accelerator-fit"
+      ]
+    }
+  ],
+  "phases": [
+    {
+      "id": "phase-1",
+      "title": "C++ / systems foundations",
+      "months": "1–2",
+      "focus": "Modern C++, Linux, memory, profiling; begin digital design",
+      "exitCriteria": "Explain CPU timing differences with evidence and simulate a basic register/ALU/FSM.",
+      "projectId": null,
+      "moduleIds": [
+        "cache-locality",
+        "data-layout",
+        "cpp-lifetime",
+        "allocation",
+        "benchmark-hygiene",
+        "virtual-memory",
+        "rtl-foundations"
+      ],
+      "parallelTrack": "1–2 hours/week: binary arithmetic, combinational/sequential logic, testbenches, counters and state machines.",
+      "optional": false
+    },
+    {
+      "id": "phase-2",
+      "title": "Low-latency C++",
+      "months": "3–4",
+      "focus": "CPU optimization, concurrent systems, processor architecture",
+      "exitCriteria": "Correct engine, controlled workload, p50/p95/p99, throughput, hardware/compiler config and writeup.",
+      "projectId": "project-1",
+      "moduleIds": [
+        "concurrency",
+        "engine-optimization",
+        "fixed-point-mac"
+      ],
+      "parallelTrack": "Pipeline registers, fixed-point MAC, reset/clock semantics and simulation coverage.",
+      "optional": false
+    },
+    {
+      "id": "phase-3",
+      "title": "CUDA & GPU architecture",
+      "months": "5–7",
+      "focus": "CUDA programming, GPU architecture and profiling",
+      "exitCriteria": "Correct reproducible kernel suite, measured optimizations and technical report.",
+      "projectId": "project-2",
+      "moduleIds": [
+        "cuda-model",
+        "cuda-memory",
+        "cuda-reduction-scan",
+        "cuda-gemm",
+        "architecture-bottlenecks",
+        "fpga-resources"
+      ],
+      "parallelTrack": "Synthesis flow, BRAM/DSP, timing constraints and a simulated pipelined MAC.",
+      "optional": false
+    },
+    {
+      "id": "phase-4",
+      "title": "Inference systems & quantization",
+      "months": "8–9",
+      "focus": "GPU serving, runtime design and quantization",
+      "exitCriteria": "Working published runtime, profiler results and fair baseline comparisons.",
+      "projectId": "project-3",
+      "moduleIds": [
+        "inference-runtime",
+        "zynq-ps-pl"
+      ],
+      "parallelTrack": "Zynq PS/PL, AXI4-Lite/Stream, DMA, buffering and PYNQ overlays.",
+      "optional": false
+    },
+    {
+      "id": "phase-5",
+      "title": "FPGA implementation fundamentals",
+      "months": "10–12",
+      "focus": "Concentrated implementation of the single FPGA capstone",
+      "exitCriteria": "Working physical-board DMA/control and verified arithmetic pipeline with timing/utilization reports.",
+      "projectId": "project-4",
+      "moduleIds": [
+        "hls-pipeline",
+        "fir-preprocessing",
+        "axi-dma"
+      ],
+      "parallelTrack": "",
+      "optional": false
+    },
+    {
+      "id": "phase-6",
+      "title": "Quantized CPU / GPU / FPGA accelerator",
+      "months": "13–15",
+      "focus": "Deploy the compact IMU gesture classifier and compare platforms",
+      "exitCriteria": "Physical board demo, bitstream/driver source, correctness, synthesis/timing and CPU/GPU/FPGA report.",
+      "projectId": "project-4",
+      "moduleIds": [
+        "quantization",
+        "accelerator-fit"
+      ],
+      "parallelTrack": "",
+      "optional": false
+    },
+    {
+      "id": "phase-7",
+      "title": "Polish, architecture depth & recruiting",
+      "months": "16–18 · optional buffer",
+      "focus": "Reproducibility, writeups, demonstrations, selected credentials and portfolio",
+      "exitCriteria": "Four articles, reproducible repositories, demonstrations and evidence-based interview stories.",
+      "projectId": null,
+      "moduleIds": [
+        "architecture-depth"
+      ],
+      "parallelTrack": "",
+      "optional": true
+    }
+  ],
+  "projects": [
+    {
+      "id": "project-1",
+      "title": "Low-Latency Matching Engine",
+      "repo": "cpp-low-latency-engine",
+      "phaseIds": [
+        "phase-2"
+      ],
+      "summary": "A correct limit-order-book / matching engine with controlled optimization experiments.",
+      "milestones": [
+        "Add, cancel, execute and optionally modify orders",
+        "Deterministic replay against a slower reference",
+        "Controlled workloads with throughput and tail latency",
+        "At least three optimization investigations, retaining negative results"
+      ],
+      "definitionOfDone": "Tests, reproducible workload, p50/p95/p99, hardware/compiler configuration and profiler-backed optimization report."
+    },
+    {
+      "id": "project-2",
+      "title": "CUDA KernelForge",
+      "repo": "cuda-kernelforge",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "summary": "A CUDA kernel library and reproducible benchmark suite.",
+      "milestones": [
+        "Vector addition, reduction and prefix scan",
+        "Naive and shared-memory tiled GEMM",
+        "Convolution or related compute-heavy kernel",
+        "Meaningful optimized CPU and NVIDIA library baselines",
+        "Nsight experiments and technical report"
+      ],
+      "definitionOfDone": "Correct kernels, controlled reproducible benchmarks, optimized baselines and measured explanations."
+    },
+    {
+      "id": "project-3",
+      "title": "GPU Inference Runtime",
+      "repo": "gpu-inference-runtime",
+      "phaseIds": [
+        "phase-4"
+      ],
+      "summary": "A C++ / CUDA / TensorRT inference service for a small supported model.",
+      "milestones": [
+        "Reference model accuracy and latency",
+        "Compatible C++ TensorRT runtime",
+        "Custom CUDA preprocessing",
+        "Batching, streams and transfer-overlap experiments",
+        "Throughput/latency curves and precision accuracy evaluation"
+      ],
+      "definitionOfDone": "Working end-to-end runtime, correctness tests, profiler evidence and fair loaded-system comparisons."
+    },
+    {
+      "id": "project-4",
+      "title": "PYNQ Quantized Accelerator",
+      "repo": "pynq-quantized-accelerator",
+      "phaseIds": [
+        "phase-5",
+        "phase-6"
+      ],
+      "summary": "One integrated PYNQ-Z2 capstone: verified RTL/HLS building blocks through compact quantized IMU inference.",
+      "milestones": [
+        "Simulate 8-bit ALU and fixed-point MAC",
+        "Synthesize pipelined dot product and fixed-point FIR/preprocessor",
+        "Physical AXI/DMA round trip against C++ reference",
+        "Collect leakage-free train/validation/test data and train FP32 model",
+        "Quantize INT8 and build equivalent CPU/CUDA baselines",
+        "Fit and deploy a supported FPGA implementation",
+        "Separate compute, transfer and end-to-end measurements",
+        "Optional runtime-loaded weights after the baseline fits"
+      ],
+      "definitionOfDone": "Physical board demo, source/driver/bitstream, correctness tests, resource/timing reports and fair CPU/GPU/FPGA benchmarks. Runtime-loaded weights and double buffering are optional."
+    }
+  ],
+  "credentials": [
+    {
+      "id": "cuda-dli",
+      "title": "Fundamentals of Accelerated Computing With Modern CUDA C/C++",
+      "provider": "NVIDIA DLI",
+      "priority": "High",
+      "months": "5–6",
+      "kind": "Course Certificate of Competency",
+      "description": "Approximately 8 hours; competency credential requires satisfying course assessment requirements.",
+      "url": "https://www.nvidia.com/en-us/learn/learning-path/accelerated-computing/",
+      "budgetNote": "US$90 in the May 2026 PDF; availability, assessment and checkout price must be rechecked."
+    },
+    {
+      "id": "fpga-specialization",
+      "title": "FPGA Design for Embedded Systems Specialization",
+      "provider": "University of Colorado Boulder / Coursera",
+      "priority": "High",
+      "months": "8–12",
+      "kind": "Specialization completion certificate",
+      "description": "University-issued completion certificate, not an AMD professional certificate. Some material uses Intel/Quartus/Nios II; transfer fundamentals to AMD/PYNQ.",
+      "url": "https://www.coursera.org/specializations/fpga-design",
+      "budgetNote": "Planning assumption: US$59/month for 2–4 months (US$118–236); verify local pricing and eligibility."
+    },
+    {
+      "id": "nvidia-associate",
+      "title": "NVIDIA Certified Associate — AI Infrastructure and Operations",
+      "provider": "NVIDIA",
+      "priority": "Optional",
+      "months": "After core milestones",
+      "kind": "Formal certification exam",
+      "description": "Role-dependent GPU infrastructure/operations credential; less directly aligned with CUDA kernel development.",
+      "url": "https://www.nvidia.com/en-us/learn/certification/ai-infrastructure-operations-associate/",
+      "budgetNote": "Earlier PDF: US$50 fundamentals + US$125 exam; verify current requirements and prices."
+    },
+    {
+      "id": "nvidia-modules",
+      "title": "Additional CUDA / Nsight modules",
+      "provider": "NVIDIA",
+      "priority": "Optional",
+      "months": "As project bottlenecks justify",
+      "kind": "Additional coursework",
+      "description": "C++ standard-library GPU acceleration/scaling; CUDA ML profiling; Nsight Systems pipelines; custom Python analysis scripts.",
+      "url": "https://www.nvidia.com/en-us/learn/learning-path/accelerated-computing/",
+      "budgetNote": "May 2026 PDF listed US$30 each, up to US$150 total. Verify current availability and pricing."
+    }
+  ],
+  "modules": [
+    {
+      "id": "cache-locality",
+      "title": "Caches & locality",
+      "track": "CPU",
+      "bookId": "csapp",
+      "phaseId": "phase-1",
+      "summary": "Connect working-set size and access pattern to measured CPU behavior.",
+      "objectives": [
+        "Explain cache locality",
+        "Control working-set size",
+        "Compare sequential and random access"
+      ],
+      "exercise": "Benchmark sequential and random traversal over several array sizes.",
+      "doneWhen": "Correctness checks, raw repeated timings, hardware details and an explanation of the observed trend.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "data-layout",
+      "title": "AoS vs SoA",
+      "track": "CPU",
+      "bookId": "csapp",
+      "phaseId": "phase-1",
+      "summary": "Explore how contiguous storage and layout change data movement.",
+      "objectives": [
+        "Describe array-of-structures and structure-of-arrays",
+        "Choose a controlled workload"
+      ],
+      "exercise": "Implement equivalent AoS and SoA computations and benchmark them.",
+      "doneWhen": "Matching outputs and at least two controlled input sizes with raw timings.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "cpp-lifetime",
+      "title": "RAII & move semantics",
+      "track": "CPU",
+      "bookId": "optimized-cpp",
+      "phaseId": "phase-1",
+      "summary": "Reason about C++20 object lifetime and ownership before measuring performance.",
+      "objectives": [
+        "Explain RAII",
+        "Distinguish copy and move behavior",
+        "Recognize value categories"
+      ],
+      "exercise": "Write a small resource-owning type and inspect copy/move behavior.",
+      "doneWhen": "Lifetime tests pass and ownership behavior is explained without claiming unmeasured speedups.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "allocation",
+      "title": "Allocation strategies",
+      "track": "CPU",
+      "bookId": "optimized-cpp",
+      "phaseId": "phase-1",
+      "summary": "Compare allocation choices using the same workload.",
+      "objectives": [
+        "Explain allocator overhead",
+        "Describe contiguous storage",
+        "Control allocation lifetime"
+      ],
+      "exercise": "Compare baseline allocation with a pool or reserved contiguous storage.",
+      "doneWhen": "Correct outputs, controlled inputs and repeated baseline/change measurements.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "benchmark-hygiene",
+      "title": "Reliable microbenchmarks",
+      "track": "Measurement",
+      "bookId": "csapp",
+      "phaseId": "phase-1",
+      "summary": "Establish reproducible measurements before optimization.",
+      "objectives": [
+        "Use warmup and repeated runs",
+        "Record compiler flags and hardware",
+        "Separate setup from measured work"
+      ],
+      "exercise": "Build a C++ benchmark harness with a correctness test and raw result output.",
+      "doneWhen": "CMake/CTest workflow, warmup, repeat counts and reproducible benchmark invocation are documented.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "virtual-memory",
+      "title": "Processes & virtual memory",
+      "track": "CPU",
+      "bookId": "ostep",
+      "phaseId": "phase-1",
+      "summary": "Build an OS-level explanation of memory behavior.",
+      "objectives": [
+        "Distinguish process address spaces and physical memory",
+        "Explain virtual-memory basics"
+      ],
+      "exercise": "Record a small process-memory experiment and relate observations to its access pattern.",
+      "doneWhen": "Test setup and observed results are recorded with clear limitations.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "concurrency",
+      "title": "Atomics & contention",
+      "track": "CPU",
+      "bookId": "ostep",
+      "phaseId": "phase-2",
+      "summary": "Understand queues, ordering and shared cache lines.",
+      "objectives": [
+        "Describe SPSC queues",
+        "Explain atomic memory-order choices",
+        "Recognize false sharing"
+      ],
+      "exercise": "Implement a tested SPSC queue or contention experiment for the engine pipeline.",
+      "doneWhen": "Deterministic correctness evidence and a controlled contention benchmark are available.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "engine-optimization",
+      "title": "Matching-engine experiments",
+      "track": "CPU",
+      "bookId": "optimized-cpp",
+      "phaseId": "phase-2",
+      "summary": "Optimize against a correct replayable engine baseline.",
+      "objectives": [
+        "Validate deterministic replay",
+        "Report p50/p95/p99",
+        "Retain negative results"
+      ],
+      "exercise": "Investigate at least three layout, allocation or queue changes.",
+      "doneWhen": "Reference validation, workload distributions, throughput/tail latency and a report include regressions.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "cuda-model",
+      "title": "CUDA execution model",
+      "track": "GPU",
+      "bookId": "pmpp",
+      "phaseId": "phase-3",
+      "summary": "Map work to threads, warps and blocks.",
+      "objectives": [
+        "Explain CUDA thread hierarchy",
+        "Distinguish global/shared/register memory"
+      ],
+      "exercise": "Implement vector addition with CPU reference validation.",
+      "doneWhen": "Correct output for boundary sizes and a reproducible GPU timing method.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "cuda-memory",
+      "title": "Coalescing & bandwidth",
+      "track": "GPU",
+      "bookId": "pmpp",
+      "phaseId": "phase-3",
+      "summary": "Measure data-access behavior and asynchronous transfer boundaries.",
+      "objectives": [
+        "Describe coalesced accesses",
+        "Separate transfers and kernels",
+        "Interpret bandwidth limits"
+      ],
+      "exercise": "Compare controlled GPU access patterns and capture Nsight evidence.",
+      "doneWhen": "Correctness, memory-traffic interpretation and repeatable measured results.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "cuda-reduction-scan",
+      "title": "Reduction & prefix scan",
+      "track": "GPU",
+      "bookId": "pmpp",
+      "phaseId": "phase-3",
+      "summary": "Practice parallel aggregation with explicit correctness checks.",
+      "objectives": [
+        "Explain reduction dependencies",
+        "Explain prefix-scan outputs"
+      ],
+      "exercise": "Implement reduction and parallel prefix scan for several input sizes.",
+      "doneWhen": "Reference checks including edge cases and performance measurements for both kernels.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "cuda-gemm",
+      "title": "Tiled GEMM & convolution",
+      "track": "GPU",
+      "bookId": "pmpp",
+      "phaseId": "phase-3",
+      "summary": "Explore shared-memory tiling and relevant optimized baselines.",
+      "objectives": [
+        "Explain tiling",
+        "Reason about occupancy",
+        "Compare fairly with cuBLAS"
+      ],
+      "exercise": "Implement naive/tiled GEMM and one convolution or related compute-heavy kernel.",
+      "doneWhen": "Correct results, relevant CPU/library comparisons and profiler-backed discussion.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "architecture-bottlenecks",
+      "title": "Quantitative bottlenecks",
+      "track": "Architecture",
+      "bookId": "quantitative-architecture",
+      "phaseId": "phase-3",
+      "summary": "Use measured workload behavior to study hardware limits.",
+      "objectives": [
+        "Reason about arithmetic intensity",
+        "Connect memory bottlenecks and pipelines"
+      ],
+      "exercise": "Explain a KernelForge bottleneck using measurements and architecture concepts.",
+      "doneWhen": "Profiler evidence supports the bottleneck claim and caveats are documented.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "inference-runtime",
+      "title": "Serving, streams & batching",
+      "track": "AI inference",
+      "bookId": null,
+      "phaseId": "phase-4",
+      "summary": "Measure end-to-end inference under realistic load.",
+      "objectives": [
+        "Explain streams/events",
+        "Compare batching policies",
+        "Report queueing and p95/p99"
+      ],
+      "exercise": "Build the C++/TensorRT runtime with custom CUDA preprocessing where supported.",
+      "doneWhen": "Correct runtime plus throughput/latency curves across multiple load levels.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "rtl-foundations",
+      "title": "Logic, counters & FSMs",
+      "track": "FPGA",
+      "bookId": "digital-design",
+      "phaseId": "phase-1",
+      "summary": "Begin the FPGA track with simulation.",
+      "objectives": [
+        "Explain combinational versus sequential logic",
+        "Write self-checking testbenches"
+      ],
+      "exercise": "Simulate a counter, FSM and 8-bit ALU.",
+      "doneWhen": "Corner-case checks pass; no physical bitstream is required at this stage.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "fixed-point-mac",
+      "title": "Fixed-point & pipelined MAC",
+      "track": "FPGA",
+      "bookId": "digital-design",
+      "phaseId": "phase-2",
+      "summary": "Make numerical and pipeline behavior explicit.",
+      "objectives": [
+        "Explain signed arithmetic",
+        "Document overflow/saturation",
+        "Distinguish latency and initiation interval"
+      ],
+      "exercise": "Model and simulate a fixed-point MAC with pipeline registers.",
+      "doneWhen": "Self-checking known vectors pass and reset/clock semantics are explained.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "fpga-resources",
+      "title": "Synthesis & timing reports",
+      "track": "FPGA",
+      "bookId": "digital-design",
+      "phaseId": "phase-3",
+      "summary": "Connect RTL structure to hardware resource and timing constraints.",
+      "objectives": [
+        "Explain LUT/FF/BRAM/DSP roles",
+        "Read slack and critical paths"
+      ],
+      "exercise": "Synthesize the pipelined MAC if compatible tools are available.",
+      "doneWhen": "Simulation evidence plus a synthesis report, or an explicit tooling blocker without invented results.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "hls-pipeline",
+      "title": "HLS pipelining & partitioning",
+      "track": "FPGA",
+      "bookId": "parallel-fpga",
+      "phaseId": "phase-5",
+      "summary": "Compare hardware scheduling choices within the one capstone.",
+      "objectives": [
+        "Explain PIPELINE and UNROLL",
+        "Explain array partitioning",
+        "Read initiation interval"
+      ],
+      "exercise": "Synthesize a pipelined dot product and compare one HLS scheduling change.",
+      "doneWhen": "Numerical checks and measured LUT/FF/DSP/BRAM, timing and II are recorded.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "fir-preprocessing",
+      "title": "Fixed-point FIR block",
+      "track": "FPGA",
+      "bookId": "parallel-fpga",
+      "phaseId": "phase-5",
+      "summary": "Build a small reusable arithmetic block for the capstone.",
+      "objectives": [
+        "Validate fixed-point semantics",
+        "Explain pipeline resource tradeoffs"
+      ],
+      "exercise": "Implement a fixed-point FIR or preprocessing block against a C++ reference.",
+      "doneWhen": "Known vectors pass and the role of the block in the capstone is documented.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "zynq-ps-pl",
+      "title": "Zynq PS, PL & overlays",
+      "track": "FPGA",
+      "bookId": "zynq-book",
+      "phaseId": "phase-4",
+      "summary": "Understand the host/accelerator split and supported tool flow.",
+      "objectives": [
+        "Distinguish processing system and programmable logic",
+        "Explain overlays"
+      ],
+      "exercise": "Survey compatible PYNQ-Z2 build/runtime versions and identify the development machine.",
+      "doneWhen": "A dated compatibility decision and tool-access plan exist.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "axi-dma",
+      "title": "AXI, DMA & buffers",
+      "track": "FPGA",
+      "bookId": "zynq-book",
+      "phaseId": "phase-5",
+      "summary": "Move verified data between ARM and programmable logic.",
+      "objectives": [
+        "Distinguish AXI4-Lite and AXI4-Stream",
+        "Check transfer length/alignment",
+        "Consider cache coherency"
+      ],
+      "exercise": "Load a supported overlay and round-trip known vectors through the data path.",
+      "doneWhen": "Physical PYNQ-Z2 output matches reference; core and transfer timing are separated.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "quantization",
+      "title": "Quantization & accuracy",
+      "track": "AI inference",
+      "bookId": "efficient-dnn",
+      "phaseId": "phase-6",
+      "summary": "Measure precision changes against a held-out reference.",
+      "objectives": [
+        "Explain INT8 conventions",
+        "Record scales/zero points or fixed-point format",
+        "Prevent data leakage"
+      ],
+      "exercise": "Train FP32 and quantize the compact gesture classifier to INT8.",
+      "doneWhen": "Train/validation/test separation, FP32/INT8 metrics and confusion matrix are recorded.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "accelerator-fit",
+      "title": "Fit-to-device inference",
+      "track": "FPGA",
+      "bookId": "efficient-dnn",
+      "phaseId": "phase-6",
+      "summary": "Deploy a compact network based on real synthesis constraints.",
+      "objectives": [
+        "Estimate weight/activation buffers",
+        "Resize to resource budgets",
+        "Compare CPU/GPU/FPGA timing boundaries"
+      ],
+      "exercise": "Use a confirmed hls4ml flow or a small handwritten HLS datapath and deploy to PYNQ-Z2.",
+      "doneWhen": "Physical-board demo, design/driver source, accuracy, resource/timing and fair benchmark reports.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    },
+    {
+      "id": "architecture-depth",
+      "title": "Revisit measured bottlenecks",
+      "track": "Architecture",
+      "bookId": "quantitative-architecture",
+      "phaseId": "phase-7",
+      "summary": "Choose deeper study using evidence from completed projects.",
+      "objectives": [
+        "Explain data-movement limits",
+        "Connect pipelines and precision to results"
+      ],
+      "exercise": "Write one focused architecture note linked to a real project bottleneck.",
+      "doneWhen": "The note cites project evidence, limitations and a testable next hypothesis.",
+      "provisional": true,
+      "estimatedMinutes": 45
+    }
+  ],
+  "quizQuestions": [
+    {
+      "id": "q-benchmark",
+      "moduleId": "benchmark-hygiene",
+      "prompt": "Which evidence best supports a performance improvement claim?",
+      "choices": [
+        "One fastest run after editing the code",
+        "Correctness checks, a controlled baseline, repeated measurements and recorded configuration",
+        "A profiler screenshot without the input or hardware details",
+        "A larger input for only the optimized version"
+      ]
+    },
+    {
+      "id": "q-locality",
+      "moduleId": "cache-locality",
+      "prompt": "Why might sequential traversal outperform random traversal of the same array?",
+      "choices": [
+        "Sequential order guarantees every access hits L1",
+        "Random traversal always uses more arithmetic",
+        "Sequential access can improve locality and let prefetching anticipate future accesses",
+        "The compiler must remove all sequential loads"
+      ]
+    },
+    {
+      "id": "q-raii",
+      "moduleId": "cpp-lifetime",
+      "prompt": "What is the central idea of RAII?",
+      "choices": [
+        "Tie resource ownership to object lifetime so destruction releases the resource",
+        "Move every object to avoid allocation",
+        "Use global variables for every resource",
+        "Manually release resources after every expression"
+      ]
+    },
+    {
+      "id": "q-tail",
+      "moduleId": "engine-optimization",
+      "prompt": "Why report p95/p99 as well as throughput?",
+      "choices": [
+        "Percentiles eliminate all measurement noise",
+        "Throughput alone proves every request is fast",
+        "Tail percentiles measure source-code complexity",
+        "Aggregate throughput can hide slow requests in the latency distribution"
+      ]
+    },
+    {
+      "id": "q-cuda",
+      "moduleId": "cuda-memory",
+      "prompt": "Which adjacent-thread access pattern is generally favorable for coalescing?",
+      "choices": [
+        "Each thread accesses an unrelated allocation",
+        "Adjacent threads access adjacent suitably aligned elements",
+        "Every thread serially reads the full input",
+        "Every warp uses a different numerical precision"
+      ]
+    },
+    {
+      "id": "q-pipeline",
+      "moduleId": "fixed-point-mac",
+      "prompt": "A pipeline has latency 5 cycles and initiation interval 1. What does that imply?",
+      "choices": [
+        "Every result takes only 1 cycle from input",
+        "Only one input may enter every 5 cycles",
+        "It can accept a new input each cycle, with each result emerging 5 cycles later",
+        "Its clock frequency is exactly 5 GHz"
+      ]
+    },
+    {
+      "id": "q-dma",
+      "moduleId": "axi-dma",
+      "prompt": "What is needed for a fair FPGA latency report?",
+      "choices": [
+        "Report core compute and data-transfer/end-to-end timing separately",
+        "Report only the HLS estimated cycle count as host latency",
+        "Exclude all numerical checks",
+        "Assume DMA has zero overhead"
+      ]
+    },
+    {
+      "id": "q-int8",
+      "moduleId": "quantization",
+      "prompt": "After quantizing a model to INT8, what should be checked?",
+      "choices": [
+        "Only that the output tensor exists",
+        "Only that the model file is smaller",
+        "Training accuracy on the same data used to tune quantization",
+        "Held-out accuracy, numerical conventions, resource use and measured performance"
+      ]
+    }
+  ],
+  "measurementRules": [
+    "Establish correctness against a reference before optimizing.",
+    "Pin input sizes, seeds, model versions, precision, compiler flags and hardware.",
+    "Separate setup, transfer, compute and end-to-end response time.",
+    "Warm up appropriately; repeat measurements and report distribution/variance.",
+    "Use fair optimized CPU and relevant GPU-library baselines.",
+    "Separate FPGA pipeline latency from ARM/host/DMA overhead.",
+    "Report numerical accuracy and resource/energy methodology when changing precision.",
+    "Retain failed or regressing experiments with explanations.",
+    "Store scripts and raw benchmark data with charts."
+  ]
+}

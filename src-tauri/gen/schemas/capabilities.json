@@ -1,0 +1,1 @@
+{"main-capability":{"identifier":"main-capability","description":"Local main window with only essential Tauri core permissions","local":true,"windows":["main"],"permissions":["core:default"]}}

@@ -1,0 +1,34 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  frontend-and-curriculum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: python3 curriculum/build_seed.py
+      - run: git diff --exit-code -- curriculum/data.json curriculum/public-data.json
+      - run: python3 curriculum/validate_seed.py
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+  rust-store:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo test --locked --no-default-features --manifest-path src-tauri/Cargo.toml

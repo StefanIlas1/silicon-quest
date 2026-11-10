@@ -1,0 +1,45 @@
+# Dependencies and generated build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+src-tauri/target/
+target/
+.DS_Store
+*.log
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets/
+
+# Personal study material and application state
+*.pdf
+*.epub
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.db-*
+local-data/
+app-data/
+personal/
+notes/
+backups/
+exports/
+*.bak
+*.backup
+*.tmp
+*.orig
+
+# Editor and Python caches
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+.venv/
