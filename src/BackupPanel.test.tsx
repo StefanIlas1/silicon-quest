@@ -89,6 +89,16 @@ async function confirm() {
   fireEvent.click(screen.getByRole("button", { name: "Replace local data" }));
 }
 describe("explicit local backups", () => {
+  it("warns about chapter drafts in export settings and restore confirmation", async () => {
+    render(<BackupPanel unsavedChapterDrafts={2} />);
+    expect(
+      screen.getByText(/2 book indexes have unsaved chapter drafts/),
+    ).toBeTruthy();
+    await inspect();
+    expect(
+      screen.getByText(/Restoring discards these chapter drafts/),
+    ).toBeTruthy();
+  });
   it("labels backed-up course completions as personal reports and warns about course drafts separately", async () => {
     const implementation = mock.invoke.getMockImplementation()!;
     mock.invoke.mockImplementation(async (name, args) =>

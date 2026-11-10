@@ -1,0 +1,192 @@
+.chapter-index {
+  background: #222326;
+  border-bottom: 1px solid #303135;
+  color: #e6e6e3;
+}
+.chapter-index-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.chapter-index-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  color: #e6e6e3;
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  min-width: 0;
+}
+.chapter-index-toggle strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.chapter-index-toggle span {
+  font-size: 11px;
+  color: #a3a4a1;
+}
+.chapter-index-body {
+  padding: 0 16px 16px;
+  max-height: 70vh;
+  overflow: auto;
+}
+.chapter-index-help,
+.chapter-index-empty {
+  font-size: 12px;
+  color: #a3a4a1;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.chapter-error,
+.chapter-map-warning {
+  padding: 10px;
+  border: 1px solid #6f5048;
+  border-radius: 6px;
+  color: #e1b6a6;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.chapter-notice {
+  color: #adbfaf;
+  font-size: 12px;
+}
+.chapter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-top: 1px solid #303135;
+  padding: 12px 0;
+}
+.chapter-order {
+  font-size: 11px;
+  color: #858783;
+  min-width: 20px;
+  padding-top: 3px;
+}
+.chapter-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.chapter-row strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.chapter-state {
+  display: block;
+  font-size: 11px;
+  color: #929590;
+  margin-top: 4px;
+}
+.chapter-state.read {
+  color: #b2c3b5;
+}
+.chapter-page-link {
+  display: block;
+  color: #a9bdcf;
+  background: none;
+  border: 0;
+  padding: 6px 0 0;
+  font-size: 11px;
+  text-align: left;
+}
+.chapter-page-link:disabled {
+  color: #9b9388;
+  cursor: default;
+  opacity: 1;
+}
+.chapter-form {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #3a3c3e;
+  background: #1b1c1e;
+  border-radius: 6px;
+}
+.chapter-form-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.chapter-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: #a3a4a1;
+  margin-bottom: 12px;
+}
+.chapter-form input,
+.chapter-form select,
+.chapter-form textarea {
+  color: #e6e6e3;
+  background: #222326;
+  border: 1px solid #3a3c3e;
+  border-radius: 5px;
+  padding: 9px;
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.chapter-form textarea {
+  min-height: 85px;
+  resize: vertical;
+}
+.chapter-form-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.chapter-form fieldset {
+  margin: 0 0 10px;
+  border: 1px solid #303135;
+  padding: 10px;
+  border-radius: 5px;
+  min-width: 0;
+}
+.chapter-form fieldset p,
+.chapter-form small {
+  display: block;
+  color: #929590;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.chapter-form legend {
+  color: #a3a4a1;
+  font-size: 11px;
+  padding: 0 5px;
+}
+.chapter-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 12px 0;
+}
+.chapter-form button,
+.chapter-index button {
+  cursor: pointer;
+}
+.chapter-form button:disabled,
+.chapter-index button:disabled {
+  cursor: default;
+}
+@media (max-width: 550px) {
+  .chapter-index-heading {
+    flex-wrap: wrap;
+  }
+  .chapter-index-toggle {
+    flex: 1;
+  }
+  .chapter-form-pair {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

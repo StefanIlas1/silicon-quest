@@ -25,6 +25,9 @@ export type Dashboard = {
   attempts: Attempt[];
   notes: { topicId: string; body: string; updatedAt: string }[];
   streakDays: number;
+  longestStreakDays: number;
+  activityDays: string[];
+  localToday: string;
 };
 export type Quiz = {
   topicId: string;
@@ -51,6 +54,9 @@ export const emptyDashboard: Dashboard = {
   attempts: [],
   notes: [],
   streakDays: 0,
+  longestStreakDays: 0,
+  activityDays: [],
+  localToday: "",
 };
 export const api = {
   dashboard: () => invoke<Dashboard>("get_dashboard"),

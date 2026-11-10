@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-const CURRENT_SCHEMA: i64 = 7;
+const CURRENT_SCHEMA: i64 = 8;
 const APPLICATION_ID: i64 = 1397836881;
 const MAX_BACKUP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const PREVIEW_LIFETIME: Duration = Duration::from_secs(15 * 60);
@@ -240,6 +240,7 @@ fn reference_schema(version: i64) -> Result<Connection> {
         include_str!("../migrations/005_backup_identity.sql"),
         include_str!("../migrations/006_project_tracking.sql"),
         include_str!("../migrations/007_credential_tracking.sql"),
+        include_str!("../migrations/008_chapters.sql"),
     ]
     .into_iter()
     .take(version as usize)
@@ -258,7 +259,7 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
     conn.pragma_update(None, "query_only", true)?;
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if !(1..=CURRENT_SCHEMA).contains(&version) {
-        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–7; newer schemas require a newer app."));
+        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–8; newer schemas require a newer app."));
     }
     let app_id: i64 = conn.pragma_query_value(None, "application_id", |r| r.get(0))?;
     if (version >= 5 && app_id != APPLICATION_ID)
@@ -423,6 +424,31 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
             return Err(invalid("This backup exceeds the credential history limit."));
         }
         if conn.query_row("SELECT count(*) FROM credential_progress WHERE length(CAST(evidence_note AS BLOB))>20000 OR length(CAST(evidence_reference AS BLOB))>2048",[],|r|r.get::<_,i64>(0))?>0 {return Err(invalid("This backup contains oversized credential evidence."));}
+    }
+    if version >= 8 {
+        let invalid_chapters: i64 = conn.query_row("SELECT count(*) FROM book_chapters WHERE length(id)>100 OR length(title)>200 OR length(CAST(note AS BLOB))>20000 OR length(document_revision)>100 OR version<1 OR length(created_at)>100 OR length(updated_at)>100", [], |r| r.get(0))?;
+        let oversized_books: i64 = conn.query_row("SELECT count(*) FROM (SELECT book_id FROM book_chapters GROUP BY book_id HAVING count(*)>500)", [], |r| r.get(0))?;
+        let mut statement = conn.prepare("SELECT id,created_at,updated_at FROM book_chapters")?;
+        let mut rows = statement.query([])?;
+        while let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            let created: String = row.get(1)?;
+            let updated: String = row.get(2)?;
+            if !crate::chapters::valid_id(&id)
+                || chrono::DateTime::parse_from_rfc3339(&created).is_err()
+                || chrono::DateTime::parse_from_rfc3339(&updated).is_err()
+            {
+                return Err(invalid(
+                    "This backup contains invalid chapter identities or timestamps.",
+                ));
+            }
+        }
+
+        if invalid_chapters > 0 || oversized_books > 0 {
+            return Err(invalid(
+                "This backup contains invalid or oversized chapter data.",
+            ));
+        }
     }
     if version >= 5 {
         let epoch = read_epoch(&conn)?;

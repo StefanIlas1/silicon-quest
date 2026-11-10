@@ -71,11 +71,13 @@ export default function BackupPanel({
   unsavedNotes = 0,
   unsavedProjectDrafts = 0,
   unsavedCredentialDrafts = 0,
+  unsavedChapterDrafts = 0,
   otherOperationBusy = false,
 }: {
   unsavedNotes?: number;
   unsavedProjectDrafts?: number;
   unsavedCredentialDrafts?: number;
+  unsavedChapterDrafts?: number;
   otherOperationBusy?: boolean;
 }) {
   const focus = useFocus();
@@ -346,6 +348,15 @@ export default function BackupPanel({
           finish this session before restoring.
         </p>
       )}
+      {unsavedChapterDrafts > 0 && (
+        <p className="backup-draft-warning">
+          {unsavedChapterDrafts} book{" "}
+          {unsavedChapterDrafts === 1 ? "has" : "indexes have"} unsaved chapter
+          drafts. Only saved chapter titles, notes, progress, and page mappings
+          are exported; restoring discards these drafts. Return to each book to
+          save them.
+        </p>
+      )}
       {unsavedCredentialDrafts > 0 && (
         <p className="backup-draft-warning">
           {unsavedCredentialDrafts} personal course{" "}
@@ -521,6 +532,15 @@ export default function BackupPanel({
                   You currently have {unsavedNotes} unsaved note{" "}
                   {unsavedNotes === 1 ? "draft" : "drafts"}. Restoring and
                   restarting discards them.
+                </p>
+              )}
+              {unsavedChapterDrafts > 0 && (
+                <p className="backup-draft-warning">
+                  You also have {unsavedChapterDrafts} book{" "}
+                  {unsavedChapterDrafts === 1
+                    ? "with an unsaved chapter draft"
+                    : "indexes with unsaved chapter drafts"}
+                  . Restoring discards these chapter drafts.
                 </p>
               )}
               {unsavedCredentialDrafts > 0 && (

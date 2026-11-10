@@ -16,6 +16,7 @@ import {
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { native, errorMessage } from "./backend";
+import ChapterIndex, { type ChapterDraft } from "./ChapterIndex";
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 type DocumentInfo = {
   bookId: string;
@@ -38,10 +39,19 @@ export default function Reader({
   bookId,
   title,
   onError,
+  onActivity,
+  chapterDraft,
+  onChapterDraftChange,
 }: {
   bookId: string;
   title: string;
   onError: (message: string) => void;
+  onActivity?: () => void;
+  chapterDraft?: ChapterDraft | null;
+  onChapterDraftChange?: (
+    draft: ChapterDraft | null,
+    expected?: ChapterDraft,
+  ) => void;
 }) {
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [info, setInfo] = useState<DocumentInfo | null>(null);
@@ -334,6 +344,17 @@ export default function Reader({
   }
   return (
     <div className="pdf-reader">
+      <ChapterIndex
+        key={bookId}
+        bookId={bookId}
+        documentRevision={info?.documentRevision ?? null}
+        pageCount={doc?.numPages}
+        currentPage={doc ? page : undefined}
+        onJump={goToPage}
+        onActivity={onActivity}
+        chapterDraft={chapterDraft}
+        onChapterDraftChange={onChapterDraftChange}
+      />
       <div className="reader-toolbar">
         <span>
           <FileText size={15} />

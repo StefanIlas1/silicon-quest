@@ -1,4 +1,5 @@
 pub mod backup;
+pub mod chapters;
 pub mod credentials;
 pub mod focus;
 pub mod projects;
@@ -21,6 +22,21 @@ mod desktop {
         })?;
         store.ensure_available()?;
         f(&mut store)
+    }
+    #[tauri::command]
+    fn get_book_chapters(
+        state: State<'_, AppState>,
+        book_id: String,
+    ) -> Result<crate::chapters::ChapterIndex> {
+        with_store(state, |store| store.get_book_chapters(&book_id))
+    }
+    #[tauri::command]
+    fn save_book_chapter(
+        state: State<'_, AppState>,
+        book_id: String,
+        input: crate::chapters::ChapterInput,
+    ) -> Result<crate::chapters::ChapterIndex> {
+        with_store(state, |store| store.save_book_chapter(&book_id, input))
     }
     #[tauri::command]
     fn get_dashboard(state: State<'_, AppState>) -> Result<Dashboard> {
@@ -366,6 +382,8 @@ mod desktop {
             })
             .invoke_handler(tauri::generate_handler![
                 get_dashboard,
+                get_book_chapters,
+                save_book_chapter,
                 set_topic_status,
                 save_note,
                 get_quiz,

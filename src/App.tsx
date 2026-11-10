@@ -40,7 +40,14 @@ import {
 } from "../curriculum/data";
 import { api, emptyDashboard, native, errorMessage } from "./backend";
 import type { Dashboard, Quiz, QuizResult, Status } from "./backend";
-import { FocusMini, FocusPage, FocusSummary, FocusTopicControl } from "./Focus";
+import {
+  FocusMini,
+  FocusPage,
+  FocusSummary,
+  FocusTopicControl,
+  useFocus,
+} from "./Focus";
+import { ActivityHeatmap } from "./ActivityHeatmap";
 import {
   ReviewFeedback,
   ReviewOverview,
@@ -50,6 +57,7 @@ import {
 } from "./Review";
 import { nextReadingTopic } from "./recommendation";
 import BackupPanel from "./BackupPanel";
+import type { ChapterDraft } from "./ChapterIndex";
 import ProjectPage from "./ProjectPage";
 import { useProjects } from "./ProjectProvider";
 import CredentialPage from "./CredentialPage";
@@ -86,6 +94,7 @@ const trackClass = (track: string) =>
       ? "green"
       : "cyan";
 export default function App() {
+  const focusState = useFocus();
   const reviews = useReview();
   const projectState = useProjects();
   const credentialState = useCredentials();
@@ -93,6 +102,8 @@ export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [connected, setConnected] = useState(false);
+  const [activityRefreshFailed, setActivityRefreshFailed] = useState(false);
+  const [activityRevision, setActivityRevision] = useState(0);
   const [loading, setLoading] = useState(native);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -116,7 +127,11 @@ export default function App() {
   function acceptDashboard(next: Dashboard) {
     ++dashboardGeneration.current;
     setDashboard(next);
+    setActivityRefreshFailed(false);
   }
+  const [chapterDrafts, setChapterDrafts] = useState<
+    Record<string, ChapterDraft>
+  >({});
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [attemptId, setAttemptId] = useState("");
   const book = books.find((b) => b.id === bookId) ?? books[0];
@@ -149,6 +164,38 @@ export default function App() {
   useEffect(() => {
     if (projectState.dashboard) acceptDashboard(projectState.dashboard);
   }, [projectState.dashboard]);
+  useEffect(() => {
+    if (!native || !connected) return;
+    let active = true;
+    let pending = false;
+    async function refresh() {
+      if (pending) return;
+      pending = true;
+      const generation = dashboardGeneration.current;
+      try {
+        const next = await api.dashboard();
+        if (active && generation === dashboardGeneration.current) {
+          setDashboard(next);
+          setActivityRefreshFailed(false);
+        }
+      } catch {
+        if (active) setActivityRefreshFailed(true);
+      } finally {
+        pending = false;
+      }
+    }
+    void refresh();
+    // Calendar arithmetic and timezone come from storage, including when the
+    // app remains open across midnight or the operating-system zone changes.
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [connected, focusState.acknowledgedAt, activityRevision]);
   const savedNote =
     dashboard.notes.find((n) => n.topicId === topicId)?.body ?? "";
   const note = noteDrafts[topicId] ?? savedNote;
@@ -342,7 +389,7 @@ export default function App() {
                   ? "Connecting…"
                   : "Browser preview"}
             </span>
-            <span className="topbar-date">NOV 2026 · YOUR OWN PACE</span>
+            <span className="topbar-date">2026 ROADMAP</span>
           </div>
         </header>
         {!native && (
@@ -396,14 +443,12 @@ export default function App() {
                 <div>
                   <div className="eyebrow">
                     <span className="tiny-line" />
-                    BUILD. MEASURE. UNDERSTAND.
+                    LEARNING WORKSPACE
                   </div>
-                  <h1>
-                    Your next level starts here<span>.</span>
-                  </h1>
+                  <h1>Overview</h1>
                   <p>
-                    One concept, one experiment, one step closer to the
-                    hardware.
+                    Continue your reading, review due topics, or work on a
+                    project.
                   </p>
                 </div>
                 <div className="chapter-pill">
@@ -440,7 +485,7 @@ export default function App() {
                   label="LEARNING STREAK"
                   value={String(dashboard.streakDays)}
                   suffix={dashboard.streakDays === 1 ? "day" : "days"}
-                  detail="A little progress compounds"
+                  detail="Consecutive days with recorded activity"
                   color="orange"
                 />
               </div>
@@ -453,7 +498,7 @@ export default function App() {
                         ? "KEEP THE RECALL"
                         : reading
                           ? "CONTINUE YOUR JOURNEY"
-                          : "YOUR FIRST STEP"}
+                          : "NEXT TOPIC"}
                     </div>
                     <h2>
                       {recommendedTopic
@@ -515,7 +560,7 @@ export default function App() {
                 </section>
                 <section className="level-card">
                   <div className="card-topline">
-                    <span className="eyebrow">EXPLORER PROFILE</span>
+                    <span className="eyebrow">LEARNING PROGRESS</span>
                     <Sparkles size={16} />
                   </div>
                   <div className="level-badge">
@@ -534,15 +579,21 @@ export default function App() {
                       }}
                     />
                   </div>
-                  <small>Understanding is the real upgrade.</small>
+                  <small>XP comes from recorded reading and checks.</small>
                 </section>
               </div>
+              <ActivityHeatmap
+                dashboard={dashboard}
+                available={native && connected}
+                loading={loading}
+                refreshFailed={activityRefreshFailed}
+              />
               <FocusSummary onOpen={() => setPage("focus")} />
               <ReviewOverview onOpen={() => setPage("reviews")} />
               <div className="section-heading">
                 <div>
-                  <h2>Your learning tracks</h2>
-                  <p>Three disciplines. One systems mindset.</p>
+                  <h2>Learning tracks</h2>
+                  <p>C++ and CPU systems, CUDA, and digital design.</p>
                 </div>
                 <button
                   className="text-button"
@@ -556,28 +607,28 @@ export default function App() {
                 {[
                   {
                     title: "C++ & CPU systems",
-                    tag: "THE FOUNDATION",
+                    tag: "CPU",
                     tone: "cyan",
                     icon: Code2,
-                    desc: "Go from code to caches. Build correct, measurable low-latency systems.",
+                    desc: "Memory, profiling, and low-latency C++ systems.",
                     count: "Months 1–4",
                     filter: "C++",
                   },
                   {
                     title: "CUDA & GPU performance",
-                    tag: "THE PARALLEL PATH",
+                    tag: "GPU",
                     tone: "green",
                     icon: Zap,
-                    desc: "Think in warps, move less data, and build kernels that earn their speed.",
+                    desc: "GPU architecture, kernel optimization, and inference.",
                     count: "Months 5–9",
                     filter: "CUDA",
                   },
                   {
                     title: "FPGA & digital design",
-                    tag: "THE HARDWARE LAYER",
+                    tag: "FPGA",
                     tone: "purple",
                     icon: Cpu,
-                    desc: "Design the datapath. From your first RTL testbench to an AI accelerator.",
+                    desc: "RTL, hardware interfaces, and a quantized accelerator.",
                     count: "Parallel from month 1",
                     filter: "FPGA",
                   },
@@ -635,7 +686,7 @@ export default function App() {
                                 ?.bookId === b.id && t.status !== "not_started",
                           )
                             ? "In progress"
-                            : "Ready when you are"}
+                            : "Not started"}
                         </em>
                       </span>
                       <ChevronRight size={16} />
@@ -644,13 +695,9 @@ export default function App() {
                 </section>
                 <section className="principle-card">
                   <span className="eyebrow">
-                    <ShieldCheck size={14} /> THE ENGINEER’S RULE
+                    <ShieldCheck size={14} /> MEASUREMENT PRACTICE
                   </span>
-                  <h3>
-                    Evidence before
-                    <br />
-                    optimization.
-                  </h3>
+                  <h3>Record the baseline.</h3>
                   <p>
                     Correctness first. Establish a baseline. Change one thing.
                     Keep the measurements.
@@ -659,7 +706,7 @@ export default function App() {
                     className="text-button"
                     onClick={() => setPage("projects")}
                   >
-                    Build something measurable
+                    View project requirements
                     <ArrowRight size={15} />
                   </button>
                 </section>
@@ -669,9 +716,9 @@ export default function App() {
           {page === "library" && (
             <>
               <PageHeading
-                eyebrow="THE KNOWLEDGE LAYER"
-                title="Your technical bookshelf."
-                description="Selective reading, connected to the work. Bring your own PDFs; keep them local."
+                eyebrow="READING"
+                title="Book library"
+                description="Roadmap references and your local PDFs. Open a book to organize chapters and notes."
               />
               <div className="filter-bar">
                 <label className="search-field">
@@ -727,8 +774,8 @@ export default function App() {
           {page === "roadmap" && (
             <>
               <PageHeading
-                eyebrow="THE LONG GAME"
-                title="Depth, one layer at a time."
+                eyebrow="CURRICULUM"
+                title="Learning path"
                 description="A flexible 15–18 month path from systems foundations to hardware-aware AI inference."
               />
               <div className="tabs">
@@ -819,8 +866,8 @@ export default function App() {
           {page === "projects" && (
             <>
               <PageHeading
-                eyebrow="TURN KNOWLEDGE INTO EVIDENCE"
-                title="Four projects. Real depth."
+                eyebrow="PORTFOLIO"
+                title="Projects"
                 description="Portfolio work built around correctness, controlled experiments, and reproducible results."
               />
               <ProjectPage
@@ -851,8 +898,8 @@ export default function App() {
           {page === "achievements" && (
             <>
               <PageHeading
-                eyebrow="EARNED, NEVER ASSUMED"
-                title="Milestones that mean something."
+                eyebrow="PROGRESS"
+                title="Achievements"
                 description="Knowledge checks reward understanding. Your reading status alone never claims mastery."
               />
               <div className="achievement-summary">
@@ -953,13 +1000,17 @@ export default function App() {
             <>
               <PageHeading
                 eyebrow="YOUR WORKSPACE"
-                title="Quiet tools. Clear boundaries."
-                description="A local learning companion with a transparent source of truth."
+                title="Settings"
+                description="Local storage, backups, and application information."
               />
               <BackupPanel
                 otherOperationBusy={busy}
                 unsavedProjectDrafts={projectState.unsavedDraftCount}
                 unsavedCredentialDrafts={credentialState.unsavedDraftCount}
+                unsavedChapterDrafts={
+                  Object.values(chapterDrafts).filter((draft) => draft.dirty)
+                    .length
+                }
                 unsavedNotes={
                   Object.entries(noteDrafts).filter(
                     ([id, body]) =>
@@ -1054,8 +1105,22 @@ export default function App() {
                         }
                       >
                         <Reader
+                          onActivity={() =>
+                            setActivityRevision((revision) => revision + 1)
+                          }
                           key={book.id}
                           bookId={book.id}
+                          chapterDraft={chapterDrafts[book.id] ?? null}
+                          onChapterDraftChange={(draft, expected) =>
+                            setChapterDrafts((previous) => {
+                              if (expected && previous[book.id] !== expected)
+                                return previous;
+                              const next = { ...previous };
+                              if (draft) next[book.id] = draft;
+                              else delete next[book.id];
+                              return next;
+                            })
+                          }
                           title={book.title}
                           onError={setError}
                         />

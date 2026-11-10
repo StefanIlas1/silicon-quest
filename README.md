@@ -1,6 +1,6 @@
 # Silicon Quest
 
-A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Read your own PDFs with saved page positions and labeled bookmarks, keep topic notes, take curated knowledge checks, revisit a spaced-review queue, and log confirmed study time. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
+A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Read your own PDFs with saved page positions and labeled bookmarks, organize your own chapter index, keep notes, take curated knowledge checks, revisit a spaced-review queue, and track saved study activity. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
 
 The interface groups roadmap topics into **provisional modules**, not verified textbook chapters. Reading status, the latest graded check and repeated-review evidence are separate. Marking reading complete is not evidence of implementation, and a quiz pass is not a completed portfolio milestone. Reading suggestions follow roadmap phase order, including early parallel RTL study. A finished reading log does not complete project milestones. Course prices and hardware/tool compatibility are historical planning assumptions to verify with official sources before purchase.
 
@@ -34,6 +34,14 @@ See [TESTING.md](TESTING.md) for the verification scope and [ARCHITECTURE.md](AR
 
 Start a focus session from a study topic or the Focus log. Finish it when you are done. Saved totals use backend checkpoints; the live clock includes a short unsaved estimate. Closed-app time, long heartbeat gaps and clock discontinuities do not become study credit. Timer actions award no XP or mastery. See [focus tracking](docs/FOCUS.md) for recovery, concurrent-instance behavior and verification boundaries.
 
+## Chapters and reading
+
+Open a book and use **Chapter index → Add chapter** to enter titles from your edition, reading status and chapter notes, before or after importing a PDF. Optional page ranges use the reader's PDF page numbers. Chapter identity and notes survive title/order edits and PDF replacement; page links require the matching PDF revision. Drafts stay available across navigation while the app is open, and Settings warns before backup or restore. Chapter reading is self-reported and awards no XP or mastery. See [manual chapter indexes](docs/CHAPTERS.md) for limits, conflicts and preview behavior.
+
+## Study activity
+
+The overview shows 13, 26 or 52 calendar weeks of saved local activity, with current/longest streaks. A filled day means at least one changed reading update, changed nonempty note, accepted quiz attempt or confirmed focus interval; it does not indicate intensity or mastery. Keyboard users can inspect dates with arrow keys. The timer is manually controlled and does not detect attention or input inactivity. See [saved study activity](docs/ACTIVITY.md) for local-midnight rules, refresh behavior and historical records.
+
 ## Review queue
 
 A first graded check starts a persisted review schedule for its curated topic. Early passes are practice; subsequent qualifying passes must wait until the review is due. Three qualifying successes demonstrate spaced recall, while a failure resets the current evidence streak. Historical attempts, best scores and earned XP stay intact. See [scheduled review](docs/REVIEW.md) for intervals, migration and latest-check versus repeated-mastery semantics.
@@ -48,7 +56,7 @@ Track the roadmap’s four course/credential plans with personal status, calenda
 
 ## Backups
 
-Settings can export a standalone SQLite backup, including saved PDFs and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note, project and course drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
+Settings can export a standalone SQLite backup, including saved PDFs, chapter indexes and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note, chapter, project and course drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
 
 ## Curriculum and privacy
 

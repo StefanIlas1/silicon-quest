@@ -8,6 +8,8 @@ import {
 } from "@testing-library/react";
 import { emptyDashboard } from "./backend";
 import App from "./App";
+import type { ChapterDraft } from "./ChapterIndex";
+import { FocusContext, emptyFocusSummary } from "./Focus";
 import { modules, phases } from "../curriculum/data";
 const mock = vi.hoisted(() => ({
   native: true,
@@ -24,7 +26,37 @@ vi.mock("./backend", async (importOriginal) => ({
   },
   api: mock,
 }));
-vi.mock("./Reader", () => ({ default: () => <div>Local PDF workspace</div> }));
+vi.mock("./Reader", () => ({
+  default: ({
+    chapterDraft,
+    onChapterDraftChange,
+  }: {
+    chapterDraft?: ChapterDraft | null;
+    onChapterDraftChange?: (draft: ChapterDraft | null) => void;
+  }) => (
+    <div>
+      Local PDF workspace
+      <input
+        aria-label="Mock chapter draft"
+        value={chapterDraft?.note ?? ""}
+        onChange={(e) =>
+          onChapterDraftChange?.({
+            dirty: true,
+            id: "pending-chapter",
+            title: "My edition title",
+            position: "1",
+            status: "reading",
+            note: e.target.value,
+            pageStart: "",
+            pageEnd: "",
+            documentRevision: null,
+            expectedVersion: 0,
+          })
+        }
+      />
+    </div>
+  ),
+}));
 afterEach(cleanup);
 beforeEach(() => {
   mock.native = true;
@@ -32,6 +64,80 @@ beforeEach(() => {
   mock.dashboard.mockResolvedValue({ ...emptyDashboard });
 });
 describe("learning workspace", () => {
+  it("preserves chapter drafts through navigation and warns in backup settings", async () => {
+    render(<App />);
+    await screen.findByText("Local database connected");
+    fireEvent.click(screen.getByRole("button", { name: /Start learning/ }));
+    const input = await screen.findByLabelText("Mock chapter draft");
+    fireEvent.change(input, {
+      target: { value: "Private unsaved chapter notes" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+    fireEvent.click(screen.getByRole("button", { name: /Systems explorer/ }));
+    expect(screen.getByText(/1 book has unsaved chapter drafts/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+    fireEvent.click(screen.getByRole("button", { name: /Start learning/ }));
+    expect(
+      ((await screen.findByLabelText("Mock chapter draft")) as HTMLInputElement)
+        .value,
+    ).toBe("Private unsaved chapter notes");
+  });
+
+  it("refreshes activity after a confirmed focus checkpoint shorter than a second", async () => {
+    const dashboard = { ...emptyDashboard, localToday: "2026-11-10" };
+    mock.dashboard.mockResolvedValue(dashboard);
+    const control = {
+      summary: emptyFocusSummary,
+      available: true,
+      readOnly: false,
+      loading: false,
+      busy: false,
+      error: "",
+      acknowledgedAt: 0,
+      begin: async () => {},
+      finish: async () => {},
+      refresh: async () => {},
+    };
+    const view = render(
+      <FocusContext.Provider value={control}>
+        <App />
+      </FocusContext.Provider>,
+    );
+    await screen.findByText("Local database connected");
+    await waitFor(() => expect(mock.dashboard).toHaveBeenCalledTimes(2));
+    mock.dashboard.mockResolvedValue({
+      ...dashboard,
+      activityDays: ["2026-11-10"],
+      streakDays: 1,
+      longestStreakDays: 1,
+    });
+    view.rerender(
+      <FocusContext.Provider value={{ ...control, acknowledgedAt: 500 }}>
+        <App />
+      </FocusContext.Provider>,
+    );
+    await screen.findByText("Today's activity is saved.");
+    expect(mock.dashboard).toHaveBeenCalledTimes(3);
+    expect(control.summary.totalSeconds).toBe(0);
+  });
+  it("clears stale activity history after an authoritative reading update", async () => {
+    mock.dashboard
+      .mockResolvedValueOnce({ ...emptyDashboard, localToday: "2026-11-10" })
+      .mockRejectedValue(new Error("Storage temporarily unavailable"));
+    mock.status.mockResolvedValue({
+      ...emptyDashboard,
+      localToday: "2026-11-10",
+      activityDays: ["2026-11-10"],
+    });
+    render(<App />);
+    await screen.findByText(/Showing the last confirmed history/);
+    fireEvent.click(screen.getByRole("button", { name: /Start learning/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Reading" }));
+    await waitFor(() => expect(mock.status).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+    await screen.findByText("Today's activity is saved.");
+    expect(screen.queryByText(/Showing the last confirmed history/)).toBeNull();
+  });
   it("uses the recommended topic's actual phase in dashboard and sidebar labels", async () => {
     mock.dashboard.mockResolvedValue({
       ...emptyDashboard,

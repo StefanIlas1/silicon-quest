@@ -1,5 +1,5 @@
 use crate::store::{AppError, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, NaiveDate, TimeZone, Utc};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use std::{fs::File, path::Path, time::Instant};
@@ -318,6 +318,12 @@ fn tick_at(
     if credited > 0 {
         // Daily totals are assigned to the accepted checkpoint's UTC date.
         tx.execute("INSERT INTO focus_daily(session_id,day,elapsed_ms) VALUES(?1,?2,?3) ON CONFLICT(session_id,day) DO UPDATE SET elapsed_ms=elapsed_ms+excluded.elapsed_ms",params![session_id,sample.wall.date_naive().to_string(),credited])?;
+        // Activity uses local calendar days. A short accepted checkpoint can
+        // straddle midnight; count each day containing confirmed time, with
+        // the end exclusive so stopping exactly at midnight adds no new day.
+        for day in activity_interval_days(clock.sample.wall, sample.wall, &Local) {
+            crate::store::record_activity_day(&tx, day)?;
+        }
     }
     tx.commit()?;
     runtime.clock = if end {
@@ -331,6 +337,26 @@ fn tick_at(
     summary(conn, runtime)
 }
 
+fn activity_interval_days<T: TimeZone>(
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    zone: &T,
+) -> Vec<NaiveDate> {
+    let first = start.with_timezone(zone).date_naive();
+    let last = (if end > start {
+        end - chrono::Duration::nanoseconds(1)
+    } else {
+        end
+    })
+    .with_timezone(zone)
+    .date_naive();
+    if first == last {
+        vec![first]
+    } else {
+        vec![first, last]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,7 +368,7 @@ mod tests {
         (conn, runtime)
     }
     fn schema(conn: &Connection) {
-        conn.execute_batch("PRAGMA foreign_keys=ON; CREATE TABLE topics(id TEXT PRIMARY KEY); INSERT INTO topics(id) VALUES('cache-locality'),('cuda-memory');").unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON; CREATE TABLE topics(id TEXT PRIMARY KEY); INSERT INTO topics(id) VALUES('cache-locality'),('cuda-memory'); CREATE TABLE activity_days(day TEXT PRIMARY KEY);").unwrap();
         conn.execute_batch(include_str!("../migrations/003_focus_sessions.sql"))
             .unwrap();
         conn.execute_batch(include_str!("../migrations/005_backup_identity.sql"))
@@ -356,6 +382,103 @@ mod tests {
                 .with_timezone(&Utc)
                 + chrono::Duration::milliseconds(ms as i64),
         }
+    }
+    #[test]
+    fn activity_uses_local_dates_and_excludes_midnight_endpoint() {
+        let west = chrono::FixedOffset::west_opt(5 * 3600).unwrap();
+        let east = chrono::FixedOffset::east_opt(9 * 3600).unwrap();
+        let parse = |s: &str| DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc);
+        let start = parse("2026-11-11T04:59:50Z");
+        let midnight = parse("2026-11-11T05:00:00Z");
+        let after = parse("2026-11-11T05:00:10Z");
+        let date = |s| NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+        assert_eq!(
+            activity_interval_days(start, midnight, &west),
+            vec![date("2026-11-10")]
+        );
+        assert_eq!(
+            activity_interval_days(start, after, &west),
+            vec![date("2026-11-10"), date("2026-11-11")]
+        );
+        assert_eq!(
+            activity_interval_days(start, after, &east),
+            vec![date("2026-11-11")]
+        );
+        // Clock repeats and spring jumps stay on their actual calendar date.
+        let before_fall = parse("2026-11-01T01:59:50-04:00");
+        let after_fall = parse("2026-11-01T01:00:10-05:00");
+        assert_eq!(
+            activity_interval_days(before_fall, after_fall, &west),
+            vec![date("2026-11-01")]
+        );
+        let before_spring = parse("2026-03-08T01:59:50-05:00");
+        let after_spring = parse("2026-03-08T03:00:10-04:00");
+        assert_eq!(
+            activity_interval_days(before_spring, after_spring, &west),
+            vec![date("2026-03-08")]
+        );
+    }
+
+    #[test]
+    fn only_confirmed_focus_time_records_activity() {
+        let (mut conn, mut runtime) = database();
+        let base = Instant::now();
+        start_at(
+            &mut conn,
+            &mut runtime,
+            "cache-locality",
+            "activity-0001",
+            sample(base, 0),
+        )
+        .unwrap();
+        let count = |conn: &Connection| {
+            conn.query_row("SELECT count(*) FROM activity_days", [], |r| {
+                r.get::<_, i64>(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(count(&conn), 0);
+        // The initial zero-duration heartbeat and excluded sleep add no day.
+        tick_at(
+            &mut conn,
+            &mut runtime,
+            "activity-0001",
+            1,
+            false,
+            sample(base, 0),
+        )
+        .unwrap();
+        tick_at(
+            &mut conn,
+            &mut runtime,
+            "activity-0001",
+            2,
+            false,
+            sample(base, 60_000),
+        )
+        .unwrap();
+        assert_eq!(count(&conn), 0);
+        tick_at(
+            &mut conn,
+            &mut runtime,
+            "activity-0001",
+            3,
+            false,
+            sample(base, 70_000),
+        )
+        .unwrap();
+        assert_eq!(count(&conn), 1);
+        conn.execute("DELETE FROM activity_days", []).unwrap();
+        tick_at(
+            &mut conn,
+            &mut runtime,
+            "activity-0001",
+            3,
+            false,
+            sample(base, 75_000),
+        )
+        .unwrap();
+        assert_eq!(count(&conn), 0);
     }
     #[test]
     fn start_replays_keep_the_original_clock_and_only_one_session_is_active() {

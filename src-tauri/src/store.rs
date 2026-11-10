@@ -80,6 +80,9 @@ pub struct Dashboard {
     pub attempts: Vec<QuizAttempt>,
     pub notes: Vec<Note>,
     pub streak_days: i64,
+    pub longest_streak_days: i64,
+    pub activity_days: Vec<String>,
+    pub local_today: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -176,7 +179,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 7 {
+        if version > 8 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -220,6 +223,12 @@ impl Store {
             let tx = conn.transaction()?;
             tx.execute_batch(include_str!("../migrations/007_credential_tracking.sql"))?;
             tx.pragma_update(None, "user_version", 7)?;
+            tx.commit()?;
+        }
+        if version < 8 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/008_chapters.sql"))?;
+            tx.pragma_update(None, "user_version", 8)?;
             tx.commit()?;
         }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
@@ -438,6 +447,7 @@ impl Store {
             .prepare("SELECT day FROM activity_days ORDER BY day DESC")?
             .query_map([], |r| r.get::<_, String>(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        let today = Local::now().date_naive();
         Ok(Dashboard {
             topics,
             total_xp,
@@ -445,7 +455,10 @@ impl Store {
             achievements,
             attempts,
             notes,
-            streak_days: streak(&days, Local::now().date_naive()),
+            streak_days: streak(&days, today),
+            longest_streak_days: longest_streak(&days, today),
+            activity_days: days,
+            local_today: today.to_string(),
         })
     }
     fn require_topic(&self, id: &str) -> Result<()> {
@@ -488,7 +501,9 @@ impl Store {
                 award(&tx, &format!("read:{topic_id}"), 20, &timestamp)?;
                 tx.execute("INSERT OR IGNORE INTO achievements(id,title,earned_at) VALUES('first-steps','First Steps',?1)",[&timestamp])?;
             }
-            activity(&tx)?;
+            if status != "not_started" {
+                record_activity(&tx)?;
+            }
         }
         tx.commit()?;
         self.dashboard()
@@ -504,8 +519,10 @@ impl Store {
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
-        tx.execute("INSERT INTO notes(topic_id,body,updated_at) VALUES(?1,?2,?3) ON CONFLICT(topic_id) DO UPDATE SET body=excluded.body,updated_at=excluded.updated_at",params![topic_id,body,now()])?;
-        activity(&tx)?;
+        let changed = tx.execute("INSERT INTO notes(topic_id,body,updated_at) SELECT ?1,?2,?3 WHERE trim(?2)<>'' OR EXISTS(SELECT 1 FROM notes WHERE topic_id=?1) ON CONFLICT(topic_id) DO UPDATE SET body=excluded.body,updated_at=excluded.updated_at WHERE notes.body<>excluded.body",params![topic_id,body,now()])?;
+        if changed > 0 && !body.trim().is_empty() {
+            record_activity(&tx)?;
+        }
         tx.commit()?;
         self.dashboard()
     }
@@ -664,7 +681,7 @@ impl Store {
             tx.execute("INSERT OR IGNORE INTO achievements(id,title,earned_at) VALUES('first-mastery','First Check Passed',?1)",[&timestamp])?;
         }
         let review_update = crate::review::apply_attempt(&tx, attempt_id)?;
-        activity(&tx)?;
+        record_activity(&tx)?;
         tx.commit()?;
         Ok(QuizResult {
             attempt: QuizAttempt {
@@ -948,10 +965,13 @@ fn award(tx: &Transaction<'_>, key: &str, amount: i64, timestamp: &str) -> Resul
         },
     )
 }
-fn activity(tx: &Transaction<'_>) -> Result<()> {
+pub(crate) fn record_activity(tx: &Transaction<'_>) -> Result<()> {
+    record_activity_day(tx, Local::now().date_naive())
+}
+pub(crate) fn record_activity_day(tx: &Transaction<'_>, day: NaiveDate) -> Result<()> {
     tx.execute(
         "INSERT OR IGNORE INTO activity_days(day) VALUES(?1)",
-        [Local::now().date_naive().to_string()],
+        [day.to_string()],
     )?;
     Ok(())
 }
@@ -966,6 +986,26 @@ fn streak(days: &[String], today: NaiveDate) -> i64 {
         expected -= Duration::days(1);
     }
     count
+}
+fn longest_streak(days: &[String], today: NaiveDate) -> i64 {
+    let dates: std::collections::BTreeSet<_> = days
+        .iter()
+        .filter_map(|day| NaiveDate::parse_from_str(day, "%Y-%m-%d").ok())
+        .filter(|day| *day <= today)
+        .collect();
+    let mut previous = None;
+    let mut run = 0;
+    let mut longest = 0;
+    for day in dates {
+        run = if previous == day.pred_opt() {
+            run + 1
+        } else {
+            1
+        };
+        longest = longest.max(run);
+        previous = Some(day);
+    }
+    longest
 }
 
 #[cfg(test)]
@@ -1089,7 +1129,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {
@@ -1129,6 +1169,72 @@ mod tests {
             1
         );
         assert_eq!(streak(&["2026-11-08".into()], today), 0);
+    }
+
+    #[test]
+    fn activity_streaks_use_calendar_days_across_months_and_leap_years() {
+        let today = NaiveDate::from_ymd_opt(2024, 3, 1).unwrap();
+        let days = vec![
+            "2024-03-01".into(),
+            "2024-02-29".into(),
+            "2024-02-28".into(),
+            "2024-02-26".into(),
+            "2027-01-01".into(),
+        ];
+        assert_eq!(streak(&days, today), 3);
+        assert_eq!(longest_streak(&days, today), 3);
+        assert_eq!(streak(&[], today), 0);
+        assert_eq!(longest_streak(&[], today), 0);
+        // Missing yesterday breaks the current streak; old runs stay visible.
+        assert_eq!(streak(&days, today + Duration::days(2)), 0);
+        assert_eq!(longest_streak(&days, today + Duration::days(2)), 3);
+    }
+
+    #[test]
+    fn only_changed_nonempty_study_writes_create_activity() {
+        let mut store = memory();
+        assert!(store.dashboard().unwrap().activity_days.is_empty());
+        store.save_note("cache-locality", "   ").unwrap();
+        store
+            .set_topic_status("cache-locality", "not_started")
+            .unwrap();
+        assert!(store.dashboard().unwrap().activity_days.is_empty());
+        store
+            .save_note("cache-locality", "Measured a working set.")
+            .unwrap();
+        let dashboard = store.dashboard().unwrap();
+        assert_eq!(dashboard.activity_days, vec![dashboard.local_today]);
+        assert_eq!(dashboard.streak_days, 1);
+        store.conn.execute("DELETE FROM activity_days", []).unwrap();
+        store
+            .save_note("cache-locality", "Measured a working set.")
+            .unwrap();
+        store.save_note("cache-locality", "").unwrap();
+        assert!(store.dashboard().unwrap().activity_days.is_empty());
+        store.set_topic_status("cache-locality", "reading").unwrap();
+        assert_eq!(store.dashboard().unwrap().activity_days.len(), 1);
+        store.conn.execute("DELETE FROM activity_days", []).unwrap();
+        store.set_topic_status("cache-locality", "reading").unwrap();
+        store
+            .set_topic_status("cache-locality", "not_started")
+            .unwrap();
+        assert!(store.dashboard().unwrap().activity_days.is_empty());
+    }
+
+    #[test]
+    fn saved_activity_survives_reopening_without_seeded_days() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("activity.sqlite3");
+        let mut store = Store::open(&path).unwrap();
+        assert!(store.dashboard().unwrap().activity_days.is_empty());
+        store
+            .save_note("cache-locality", "Compared traversal orders.")
+            .unwrap();
+        let days = store.dashboard().unwrap().activity_days;
+        drop(store);
+        let reopened = Store::open(&path).unwrap();
+        assert_eq!(reopened.dashboard().unwrap().activity_days, days);
+        assert_eq!(reopened.dashboard().unwrap().total_xp, 0);
     }
 
     #[test]
