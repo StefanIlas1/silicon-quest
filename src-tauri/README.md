@@ -97,3 +97,39 @@ The legacy `topic_progress.mastery` / dashboard `mastery` field describes the la
 Migration 4 transactionally replays all existing saved quiz attempts in parsed timestamp and row-order tie order, including attempts older than the 100-row UI history. It does not rewrite original attempts, dates, best scores, XP, notes, PDF reader state or focus history. Review event timestamps are normalized to UTC. Malformed legacy timestamps stop/roll back the migration instead of fabricating dates. New attempt insertion, XP, check status, review evidence and schedule changes share a single transaction. Duplicate attempt IDs return their original review effect and never advance a schedule twice.
 
 Deterministic tests cover exact due boundaries, early practice, failure resets and due preservation, interval caps, duplicate attempts, cross-connection replay, invalid migration timestamps, full-history migration with 108 original attempts, preservation/reopen, and forced-failure atomic rollback. Native spaced-review UI is not smoke-tested; no GUI automation was used for this increment.
+
+## Local backup and restore (schema revision 5)
+
+Backups are standalone plain SQLite files containing the full workspace, including PDF BLOBs, notes, quiz/review records, reader pages/bookmarks, XP and saved focus checkpoints. They are not encrypted or password-protected. Nothing is uploaded. Export and inspection use native file dialogs inside the Rust process; JavaScript receives no arbitrary file read/write command. The official dialog plugin is initialized for Rust use without adding filesystem or dialog permissions to the renderer capability.
+
+| Command | Result / arguments |
+|---|---|
+| `export_local_backup()` | Native save dialog; `{fileName,bytes,createdAt}` or null on cancel |
+| `inspect_local_backup()` | Native open dialog; `BackupPreview` or null on cancel |
+| `discard_backup_preview({previewToken})` | Releases that private staged preview |
+| `restore_local_backup({previewToken})` | Explicit replacement; `RestoreReport` |
+| `get_backup_status()` | `{restartRequired,workspaceReplaced,safetyBackupPath}`; allowed after restore |
+| `restart_after_restore()` | Restarts only when a restored/replaced workspace requires it |
+
+Preview fields: `{previewToken,fileName,createdAt,sourceSchemaVersion,currentSchemaVersion,bytes,counts,interruptedSessions}`. Counts are `{topics,attempts,notes,pdfs,pdfBytes,focusSessions,trackedSeconds,reviewTopics,totalXp}` after candidate migrations. `createdAt` can be null for a legacy database. `interruptedSessions` counts active source sessions that will become interrupted at their saved checkpoint; it is not the count of already-interrupted history. Previews expire after 15 minutes; choosing a new file invalidates the old token. Discarding a preview removes the private staging directory.
+
+The restore report is `{restored:true,restartRequired:true,safetyBackupFileName,safetyBackupPath,counts}`. A successful token replay returns the identical cached report and does not restore twice, covering a lost IPC response. Status/restart remain accessible if UI state is lost, while all normal data commands stay blocked until a process restart.
+
+Export uses SQLite's online backup API to include committed WAL data consistently. It creates and validates a temporary snapshot beside the chosen destination, adds export metadata, converts the snapshot to a standalone DELETE-journal database, syncs it, then atomically publishes it. It never copies only the live main file and never accepts the live database, its aliases, or working sidecars as destinations. Existing destinations are selected through the operating system's save workflow.
+
+Inspection copies the selected standalone file into a private staging directory before validation or migration. Later changes to the selected source cannot change the prepared candidate. Validation requires:
+
+- Supported schema revisions 1–5, correct application identity for revision 5, and an exact full SQLite schema match, including expected autoindexes.
+- No triggers or views, regardless of their names; unexpected tables, indexes and changed definitions are rejected before application code can seed/migrate the candidate.
+- SQLite integrity and foreign-key checks, supported current book/topic IDs, valid PDF signatures/size limits and bounded note/history sizes.
+- At most 2 GiB per backup and one million rows in each quiz, focus or review-event history table. Imported PDFs remain limited to 100 MiB each and notes to 100,000 bytes.
+
+Newer or modified database schemas require compatible software; extra custom tables/indexes are not merged. Unknown future curriculum IDs are rejected by this version. Legacy candidates migrate only inside staging, preserving the original selected file. Only exported standalone backups should be selected: the live database/aliases and files with nonempty adjacent WAL/journal files are rejected. Validation checks structure and consistency; it does not cryptographically authenticate the file or prove the accuracy of edited learning records.
+
+Before replacement, restore requires focus ownership and an exclusive OS writer gate. Normal mutations and startup seeds/migrations hold shared gates, so a new instance or accepted write cannot slip between the safety capture and restore. A private safety snapshot is retained at `recovery/before-restore-<opaque-id>.sqlite3` beside the app database. Its full local path appears in the report (and in an error if copying fails after capture). Recovery files remain until the user manages them; no automatic deletion is claimed.
+
+The candidate gets a fresh workspace epoch before SQLite copies it into the existing live database. The live file is not renamed or swapped; SQLite manages its transactional destination and WAL. An unfinished copy rolls back. Every mutation checks its cached epoch after acquiring its SQLite write transaction. Existing app instances therefore reject stale writes after commit, even when restoring a backup from the exact same epoch. The initiating process immediately fences all normal data commands until restart, including queued PDF/quiz/focus actions. Other instances must restart as well. Close older app versions or external database-editing tools before restoring; those tools do not participate in this application's gate protocol.
+
+Saved active focus sessions become interrupted without adding offline time. Unsaved notes/UI drafts and time since the last heartbeat are not in the snapshot. The frontend requires explicit replacement and unsaved-draft acknowledgement and does not refresh old workspace state after a restore succeeds.
+
+Tests use isolated temporary databases and cover WAL-inclusive full-data round trips, exact-current-epoch restoration with a second open connection, old and newly opened writer fencing, safety-copy timing, forced partial-copy rollback and retry, source changes after inspection, expired/replaced previews, legacy migration, unsupported/corrupt/foreign-key-invalid files, invalid PDFs, hot journals, oversized files and malicious trigger/view names. Native file-picker/restart UI has been compiled but has not been manually smoke-tested; no GUI automation was used in this increment.

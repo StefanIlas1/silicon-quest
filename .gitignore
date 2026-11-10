@@ -27,6 +27,8 @@ secrets/
 *.db
 *.db-*
 *.focus-lock
+*.restore-gate
+.silicon-restore-*/
 local-data/
 app-data/
 personal/

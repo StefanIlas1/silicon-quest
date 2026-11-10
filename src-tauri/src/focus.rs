@@ -62,6 +62,7 @@ pub struct FocusRuntime {
     _lock: Option<File>,
     can_control: bool,
     token: String,
+    epoch: String,
     clock: Option<ActiveClock>,
 }
 impl FocusRuntime {
@@ -106,12 +107,17 @@ impl FocusRuntime {
             // infer elapsed time from wall timestamps or startup time.
             conn.execute("UPDATE focus_sessions SET status='interrupted',ended_at=updated_at WHERE status='active'",[])?;
         }
+        let epoch = crate::backup::read_epoch(conn)?;
         Ok(Self {
+            epoch,
             _lock: lock,
             can_control,
             token,
             clock: None,
         })
+    }
+    pub fn can_control(&self) -> bool {
+        self.can_control
     }
     fn require_owner(&self) -> Result<()> {
         if !self.can_control {
@@ -194,6 +200,7 @@ fn start_at(
         ));
     }
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    crate::backup::ensure_epoch(&tx, &runtime.epoch)?;
     let existing: Option<String> = tx
         .query_row(
             "SELECT topic_id FROM focus_sessions WHERE id=?1",
@@ -267,6 +274,7 @@ fn tick_at(
         ));
     }
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    crate::backup::ensure_epoch(&tx, &runtime.epoch)?;
     let stored: Option<(String, String, i64)> = tx
         .query_row(
             "SELECT status,owner_token,sequence FROM focus_sessions WHERE id=?1",
@@ -336,6 +344,8 @@ mod tests {
     fn schema(conn: &Connection) {
         conn.execute_batch("PRAGMA foreign_keys=ON; CREATE TABLE topics(id TEXT PRIMARY KEY); INSERT INTO topics(id) VALUES('cache-locality'),('cuda-memory');").unwrap();
         conn.execute_batch(include_str!("../migrations/003_focus_sessions.sql"))
+            .unwrap();
+        conn.execute_batch(include_str!("../migrations/005_backup_identity.sql"))
             .unwrap();
     }
     fn sample(base: Instant, ms: u64) -> ClockSample {

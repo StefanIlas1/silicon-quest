@@ -135,17 +135,34 @@ pub struct PublicQuestion {
 }
 
 pub struct Store {
-    conn: Connection,
+    pub(crate) conn: Connection,
     curriculum: Value,
-    focus: crate::focus::FocusRuntime,
+    pub(crate) focus: crate::focus::FocusRuntime,
+    pub(crate) data_epoch: String,
+    pub(crate) write_gate: Option<std::fs::File>,
+    pub(crate) database_path: Option<std::path::PathBuf>,
+    pub(crate) prepared_backup: Option<crate::backup::PreparedBackup>,
+    pub(crate) restore_result: Option<(String, crate::backup::RestoreReport)>,
 }
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let conn = Connection::open(path)?;
+        let canonical = path
+            .canonicalize()
+            .map_err(|_| invalid("Could not locate local storage."))?;
+        let gate = crate::backup::open_gate(&canonical)?;
+        // Startup seeds/migrations are writes too: a newly opened process must
+        // not slip between the restore safety snapshot and replacement.
+        let startup_guard = crate::backup::shared_gate(Some(&gate))?;
         let (lock, owner) = crate::focus::FocusRuntime::lock(path)?;
-        Self::initialize_with_focus(conn, lock, owner)
+        let mut store = Self::initialize_with_focus(conn, lock, owner)?;
+        drop(startup_guard);
+        store.write_gate = Some(gate);
+        store.database_path = Some(canonical);
+        Ok(store)
     }
+
     #[cfg(test)]
     fn initialize(conn: Connection) -> Result<Self> {
         Self::initialize_with_focus(conn, None, true)
@@ -159,7 +176,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 4 {
+        if version > 5 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -187,6 +204,12 @@ impl Store {
             tx.pragma_update(None, "user_version", 4)?;
             tx.commit()?;
         }
+        if version < 5 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/005_backup_identity.sql"))?;
+            tx.pragma_update(None, "user_version", 5)?;
+            tx.commit()?;
+        }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
         let tx = conn.transaction()?;
         for book in curriculum["books"]
@@ -207,11 +230,26 @@ impl Store {
         }
         tx.commit()?;
         let focus = crate::focus::FocusRuntime::initialize(&conn, lock, owner)?;
+        let data_epoch = crate::backup::read_epoch(&conn)?;
         Ok(Self {
             conn,
             curriculum,
             focus,
+            data_epoch,
+            write_gate: None,
+            database_path: None,
+            prepared_backup: None,
+            restore_result: None,
         })
+    }
+    pub fn ensure_available(&self) -> Result<()> {
+        if self.restore_result.is_some() {
+            return Err(crate::backup::error(
+                "restart_required",
+                "Restore is complete. Restart Silicon Quest before using the restored workspace.",
+            ));
+        }
+        crate::backup::ensure_epoch(&self.conn, &self.data_epoch)
     }
     pub fn get_review_summary(&self) -> Result<crate::review::ReviewSummary> {
         crate::review::summary(&self.conn)
@@ -224,6 +262,8 @@ impl Store {
         topic_id: &str,
         request_id: &str,
     ) -> Result<crate::focus::FocusSummary> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         self.require_topic(topic_id)?;
         crate::focus::start(&mut self.conn, &mut self.focus, topic_id, request_id)
     }
@@ -233,6 +273,8 @@ impl Store {
         sequence: i64,
         end: bool,
     ) -> Result<crate::focus::FocusSummary> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         crate::focus::tick(&mut self.conn, &mut self.focus, session_id, sequence, end)
     }
     pub fn dashboard(&self) -> Result<Dashboard> {
@@ -303,12 +345,17 @@ impl Store {
         Ok(())
     }
     pub fn set_topic_status(&mut self, topic_id: &str, status: &str) -> Result<Dashboard> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         self.require_topic(topic_id)?;
         if !["not_started", "reading", "read"].contains(&status) {
             return Err(invalid("Unknown reading status."));
         }
         let timestamp = now();
-        let tx = self.conn.transaction()?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
         let changed=tx.execute("UPDATE topic_progress SET status=?2,last_studied_at=?3 WHERE topic_id=?1 AND status<>?2",params![topic_id,status,timestamp])?;
         if changed > 0 {
             if status == "read" {
@@ -321,11 +368,16 @@ impl Store {
         self.dashboard()
     }
     pub fn save_note(&mut self, topic_id: &str, body: &str) -> Result<Dashboard> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         self.require_topic(topic_id)?;
         if body.len() > 100_000 {
             return Err(invalid("Notes must be under 100,000 bytes."));
         }
-        let tx = self.conn.transaction()?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
         tx.execute("INSERT INTO notes(topic_id,body,updated_at) VALUES(?1,?2,?3) ON CONFLICT(topic_id) DO UPDATE SET body=excluded.body,updated_at=excluded.updated_at",params![topic_id,body,now()])?;
         activity(&tx)?;
         tx.commit()?;
@@ -363,6 +415,8 @@ impl Store {
         answers: Vec<usize>,
         attempt_id: &str,
     ) -> Result<QuizResult> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         if attempt_id.len() < 8
             || attempt_id.len() > 128
             || !attempt_id
@@ -439,6 +493,7 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
         let prior = tx
             .query_row(
                 "SELECT topic_id,answers_json,feedback_json FROM quiz_attempts WHERE attempt_id=?1",
@@ -507,6 +562,8 @@ impl Store {
         file_name: &str,
         bytes: &[u8],
     ) -> Result<BookDocument> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         self.require_book(book_id)?;
         if bytes.len() > MAX_PDF_BYTES || bytes.len() < 8 || !bytes.starts_with(b"%PDF-") {
             return Err(invalid("Choose a valid PDF under 100 MiB."));
@@ -520,6 +577,7 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
         let existing = tx.query_row("SELECT imported_at,document_revision,bytes=?2 FROM book_documents WHERE book_id=?1", params![book_id,bytes], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,bool>(2)?))).optional()?;
         // Reimporting identical bytes preserves bookmarks, position and revision.
         let (imported_at, document_revision) = if let Some((old_timestamp, revision, true)) =
@@ -572,11 +630,14 @@ impl Store {
         Ok(state)
     }
     pub fn set_book_page(&mut self, book_id: &str, page: i64, revision: &str) -> Result<()> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         self.require_book(book_id)?;
         validate_page(page)?;
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
         require_revision(&tx, book_id, revision)?;
         tx.execute("INSERT INTO reader_positions(book_id,document_revision,page,updated_at) VALUES(?1,?2,?3,?4) ON CONFLICT(book_id,document_revision) DO UPDATE SET page=excluded.page,updated_at=excluded.updated_at",params![book_id,revision,page,now()])?;
         tx.commit()?;
@@ -589,6 +650,8 @@ impl Store {
         label: &str,
         revision: &str,
     ) -> Result<BookReaderState> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         self.require_book(book_id)?;
         validate_page(page)?;
         let label = label.trim();
@@ -605,6 +668,7 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
         require_revision(&tx, book_id, revision)?;
         let count: i64 = tx.query_row("SELECT count(*) FROM page_bookmarks WHERE book_id=?1 AND document_revision=?2 AND deleted_at IS NULL",params![book_id,revision],|r|r.get(0))?;
         let already_exists = tx.query_row("SELECT 1 FROM page_bookmarks WHERE book_id=?1 AND document_revision=?2 AND page=?3 AND deleted_at IS NULL",params![book_id,revision,page],|_|Ok(())).optional()?.is_some();
@@ -624,6 +688,8 @@ impl Store {
         bookmark_id: &str,
         revision: &str,
     ) -> Result<BookReaderState> {
+        self.ensure_available()?;
+        let _write_guard = crate::backup::shared_gate(self.write_gate.as_ref())?;
         self.require_book(book_id)?;
         if bookmark_id.len() != 32 || !bookmark_id.bytes().all(|c| c.is_ascii_hexdigit()) {
             return Err(invalid("Invalid bookmark ID."));
@@ -631,6 +697,7 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        crate::backup::ensure_epoch(&tx, &self.data_epoch)?;
         require_revision(&tx, book_id, revision)?;
         let changed = tx.execute("UPDATE page_bookmarks SET deleted_at=COALESCE(deleted_at,?4) WHERE id=?1 AND book_id=?2 AND document_revision=?3",params![bookmark_id,book_id,revision,now()])?;
         if changed == 0 {
@@ -896,7 +963,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {

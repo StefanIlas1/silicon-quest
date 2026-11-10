@@ -25,6 +25,8 @@ Migration 3 adds [focus sessions](docs/FOCUS.md): backend monotonic checkpoints,
 
 Migration 4 adds [scheduled review](docs/REVIEW.md), replaying all existing grades in chronological order while preserving raw history and earned rewards. New scheduling events, grades, current results and first-pass XP share a transaction. Three qualifying successes are required for repeated-review mastery; early passes remain practice. The interface prevents stale queue requests from replacing a newer quiz-returned summary.
 
+Migration 5 adds application/workspace identity and [backup/restore](docs/BACKUP.md). Native Rust dialogs choose paths; JavaScript supplies only opaque preview tokens. Validation and legacy migration occur in private staging. A shared writer/startup gate and exclusive restore gate span safety capture and atomic same-file replacement. Fresh candidate epochs reject stale writers; a successful restore fences the process until restart. A root boundary unmounts learner state/providers and supports status recovery when a restore response is uncertain. Backups are plain local SQLite files containing PDF BLOBs, with no encryption or cloud-transfer service.
+
 ## Publication boundary
 
 Only source, curriculum, lockfiles and documentation belong in Git. `.gitignore` excludes personal material, database files, PDFs, secrets and generated output. Before any push, inspect the staged files, run required checks and confirm no private study data has entered the index.

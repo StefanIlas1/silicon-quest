@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod focus;
 pub mod review;
 pub mod store;
@@ -16,6 +17,7 @@ mod desktop {
             code: "storage_unavailable",
             message: "Local storage is unavailable. Restart Silicon Quest to reconnect.".into(),
         })?;
+        store.ensure_available()?;
         f(&mut store)
     }
     #[tauri::command]
@@ -148,8 +150,107 @@ mod desktop {
     fn get_review_summary(state: State<'_, AppState>) -> Result<crate::review::ReviewSummary> {
         with_store(state, |s| s.get_review_summary())
     }
+    #[tauri::command]
+    async fn export_local_backup(
+        app: tauri::AppHandle,
+    ) -> Result<Option<crate::backup::ExportReport>> {
+        tauri::async_runtime::spawn_blocking(move || {
+            use tauri_plugin_dialog::DialogExt;
+            let selected = app
+                .dialog()
+                .file()
+                .set_title("Export private Silicon Quest backup")
+                .set_file_name("silicon-quest-backup.sqlite3")
+                .add_filter("Silicon Quest backup", &["sqlite3"])
+                .blocking_save_file();
+            let Some(selected) = selected else {
+                return Ok(None);
+            };
+            let path = selected.into_path().map_err(|_| {
+                crate::backup::error("backup_io", "Choose a local backup destination.")
+            })?;
+            with_store(app.state::<AppState>(), |store| {
+                store.export_backup_file(&path).map(Some)
+            })
+        })
+        .await
+        .map_err(|_| crate::backup::error("backup_io", "The backup operation could not finish."))?
+    }
+    #[tauri::command]
+    async fn inspect_local_backup(
+        app: tauri::AppHandle,
+    ) -> Result<Option<crate::backup::BackupPreview>> {
+        tauri::async_runtime::spawn_blocking(move || {
+            use tauri_plugin_dialog::DialogExt;
+            let selected = app
+                .dialog()
+                .file()
+                .set_title("Inspect a Silicon Quest backup")
+                .add_filter("Silicon Quest backup", &["sqlite3", "sqlite", "db"])
+                .blocking_pick_file();
+            let Some(selected) = selected else {
+                return Ok(None);
+            };
+            let path = selected.into_path().map_err(|_| {
+                crate::backup::error("backup_io", "Choose a local standalone backup file.")
+            })?;
+            with_store(app.state::<AppState>(), |store| {
+                store.inspect_backup_file(&path).map(Some)
+            })
+        })
+        .await
+        .map_err(|_| crate::backup::error("backup_io", "Backup inspection could not finish."))?
+    }
+    #[tauri::command]
+    fn discard_backup_preview(state: State<'_, AppState>, preview_token: String) -> Result<()> {
+        with_store(state, |store| store.discard_backup_preview(&preview_token))
+    }
+    #[tauri::command]
+    async fn restore_local_backup(
+        app: tauri::AppHandle,
+        preview_token: String,
+    ) -> Result<crate::backup::RestoreReport> {
+        tauri::async_runtime::spawn_blocking(move || {
+            let state=app.state::<AppState>();
+            let mut store=state.0.lock().map_err(|_|crate::backup::error("storage_unavailable","Restart Silicon Quest to reconnect to local storage."))?;
+            // This route alone permits an idempotent committed-token reply while
+            // the workspace is fenced pending process restart.
+            store.restore_backup(&preview_token)
+        }).await.map_err(|_|crate::backup::error("backup_io","The restore operation could not finish. Retry the same preview to check its result."))?
+    }
+    #[tauri::command]
+    fn get_backup_status(state: State<'_, AppState>) -> Result<crate::backup::BackupStatus> {
+        let store = state.0.lock().map_err(|_| {
+            crate::backup::error(
+                "storage_unavailable",
+                "Restart Silicon Quest to reconnect to local storage.",
+            )
+        })?;
+        store.backup_status()
+    }
+    #[tauri::command]
+    fn restart_after_restore(app: tauri::AppHandle) -> Result<()> {
+        let restart = {
+            let state = app.state::<AppState>();
+            let store = state.0.lock().map_err(|_| {
+                crate::backup::error(
+                    "storage_unavailable",
+                    "Quit and reopen Silicon Quest to reconnect to local storage.",
+                )
+            })?;
+            store.backup_status()?.restart_required
+        };
+        if !restart {
+            return Err(crate::backup::error(
+                "invalid_input",
+                "No restored workspace is waiting for restart.",
+            ));
+        }
+        app.restart()
+    }
     pub fn run() {
         tauri::Builder::default()
+            .plugin(tauri_plugin_dialog::init())
             .setup(|app| {
                 let directory = app.path().app_data_dir()?;
                 // Development smoke tests use isolated storage; release builds always
@@ -191,7 +292,13 @@ mod desktop {
                 start_focus_session,
                 tick_focus_session,
                 end_focus_session,
-                get_review_summary
+                get_review_summary,
+                export_local_backup,
+                inspect_local_backup,
+                discard_backup_preview,
+                restore_local_backup,
+                get_backup_status,
+                restart_after_restore
             ])
             .run(tauri::generate_context!())
             .expect("Silicon Quest could not initialize its local desktop window");

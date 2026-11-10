@@ -11,7 +11,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 default = ["desktop"]
-desktop = ["dep:tauri", "dep:tauri-build"]
+desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-dialog"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [], optional = true }
@@ -20,8 +20,8 @@ tauri-build = { version = "2", features = [], optional = true }
 tauri = { version = "2", features = [], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.34", features = ["bundled"] }
+rusqlite = { version = "0.34", features = ["bundled", "backup"] }
 chrono = { version = "0.4", features = ["serde"] }
 
-[dev-dependencies]
 tempfile = "3"
+tauri-plugin-dialog = { version = "2", optional = true }

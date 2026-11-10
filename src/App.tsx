@@ -49,6 +49,7 @@ import {
   useReview,
 } from "./Review";
 import { nextReadingTopic } from "./recommendation";
+import BackupPanel from "./BackupPanel";
 const Reader = lazy(() => import("./Reader"));
 type Page =
   | "dashboard"
@@ -912,6 +913,17 @@ export default function App() {
                 eyebrow="YOUR WORKSPACE"
                 title="Quiet tools. Clear boundaries."
                 description="A local learning companion with a transparent source of truth."
+              />
+              <BackupPanel
+                otherOperationBusy={busy}
+                unsavedNotes={
+                  Object.entries(noteDrafts).filter(
+                    ([id, body]) =>
+                      body !==
+                      (dashboard.notes.find((n) => n.topicId === id)?.body ??
+                        ""),
+                  ).length
+                }
               />
               <div className="settings-grid">
                 <section className="panel">

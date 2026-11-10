@@ -91,10 +91,13 @@ export default function FocusProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
       .then(async () => {
         try {
+          if (!alive.current) return;
           if (pending.current) await run(pending.current);
+          if (!alive.current) return;
           const action = makeAction();
           if (action) await run(action);
         } catch (e) {
+          if (!alive.current) return;
           const code =
             typeof e === "object" && e !== null && "code" in e
               ? String(e.code)
