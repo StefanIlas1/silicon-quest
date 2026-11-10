@@ -47,15 +47,21 @@ describe("learning workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: /Learning path/ }));
     fireEvent.click(screen.getByRole("button", { name: /Caches & locality/ }));
     expect(
-      (screen.getByRole("textbox", { name: "Topic notes" }) as HTMLTextAreaElement)
-        .value,
+      (
+        screen.getByRole("textbox", {
+          name: "Topic notes",
+        }) as HTMLTextAreaElement
+      ).value,
     ).toBe("My cache hypothesis");
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "data-layout" },
     });
     expect(
-      (screen.getByRole("textbox", { name: "Topic notes" }) as HTMLTextAreaElement)
-        .value,
+      (
+        screen.getByRole("textbox", {
+          name: "Topic notes",
+        }) as HTMLTextAreaElement
+      ).value,
     ).toBe("My layout hypothesis");
     expect(mock.note).not.toHaveBeenCalled();
   });

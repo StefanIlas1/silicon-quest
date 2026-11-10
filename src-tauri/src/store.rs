@@ -102,6 +102,22 @@ pub struct BookDocument {
     pub book_id: String,
     pub file_name: String,
     pub imported_at: String,
+    pub document_revision: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageBookmark {
+    pub id: String,
+    pub page: i64,
+    pub label: String,
+    pub created_at: String,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookReaderState {
+    pub page: i64,
+    pub document_revision: Option<String>,
+    pub bookmarks: Vec<PageBookmark>,
 }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -130,13 +146,19 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 1 {
+        if version > 2 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
             let tx = conn.transaction()?;
             tx.execute_batch(include_str!("../migrations/001_initial.sql"))?;
             tx.pragma_update(None, "user_version", 1)?;
+            tx.commit()?;
+        }
+        if version < 2 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/002_reader_state.sql"))?;
+            tx.pragma_update(None, "user_version", 2)?;
             tx.commit()?;
         }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
@@ -433,29 +455,149 @@ impl Store {
             return Err(invalid("Choose a PDF with a valid file name."));
         }
         let imported_at = now();
-        self.conn.execute("INSERT INTO book_documents(book_id,file_name,imported_at,bytes) VALUES(?1,?2,?3,?4) ON CONFLICT(book_id) DO UPDATE SET file_name=excluded.file_name,imported_at=excluded.imported_at,bytes=excluded.bytes",params![book_id,file_name,imported_at,bytes])?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let existing = tx.query_row("SELECT imported_at,document_revision,bytes=?2 FROM book_documents WHERE book_id=?1", params![book_id,bytes], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,bool>(2)?))).optional()?;
+        // Reimporting identical bytes preserves bookmarks, position and revision.
+        let (imported_at, document_revision) = if let Some((old_timestamp, revision, true)) =
+            existing
+        {
+            tx.execute(
+                "UPDATE book_documents SET file_name=?2 WHERE book_id=?1",
+                params![book_id, file_name],
+            )?;
+            (old_timestamp, revision)
+        } else {
+            let revision: String =
+                tx.query_row("SELECT lower(hex(randomblob(16)))", [], |r| r.get(0))?;
+            tx.execute("INSERT INTO book_documents(book_id,file_name,imported_at,bytes,document_revision) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(book_id) DO UPDATE SET file_name=excluded.file_name,imported_at=excluded.imported_at,bytes=excluded.bytes,document_revision=excluded.document_revision",params![book_id,file_name,imported_at,bytes,revision])?;
+            // Previous revision metadata is retained, but cannot affect the new PDF.
+            (imported_at, revision)
+        };
+        tx.commit()?;
         Ok(BookDocument {
             book_id: book_id.into(),
             file_name: file_name.into(),
             imported_at,
+            document_revision,
         })
     }
+
     pub fn get_book_document(&self, book_id: &str) -> Result<Option<BookDocument>> {
         self.require_book(book_id)?;
         Ok(self
             .conn
             .query_row(
-                "SELECT book_id,file_name,imported_at FROM book_documents WHERE book_id=?1",
+                "SELECT book_id,file_name,imported_at,document_revision FROM book_documents WHERE book_id=?1",
                 [book_id],
                 |r| {
                     Ok(BookDocument {
                         book_id: r.get(0)?,
                         file_name: r.get(1)?,
                         imported_at: r.get(2)?,
+                        document_revision: r.get(3)?,
                     })
                 },
             )
             .optional()?)
+    }
+    pub fn get_book_reader_state(&self, book_id: &str) -> Result<BookReaderState> {
+        self.require_book(book_id)?;
+        let tx = self.conn.unchecked_transaction()?;
+        let state = reader_state(&tx, book_id)?;
+        tx.commit()?;
+        Ok(state)
+    }
+    pub fn set_book_page(&mut self, book_id: &str, page: i64, revision: &str) -> Result<()> {
+        self.require_book(book_id)?;
+        validate_page(page)?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        require_revision(&tx, book_id, revision)?;
+        tx.execute("INSERT INTO reader_positions(book_id,document_revision,page,updated_at) VALUES(?1,?2,?3,?4) ON CONFLICT(book_id,document_revision) DO UPDATE SET page=excluded.page,updated_at=excluded.updated_at",params![book_id,revision,page,now()])?;
+        tx.commit()?;
+        Ok(())
+    }
+    pub fn add_bookmark(
+        &mut self,
+        book_id: &str,
+        page: i64,
+        label: &str,
+        revision: &str,
+    ) -> Result<BookReaderState> {
+        self.require_book(book_id)?;
+        validate_page(page)?;
+        let label = label.trim();
+        if label.chars().count() > 200 || label.chars().any(char::is_control) {
+            return Err(invalid(
+                "Bookmark labels must be a single line of at most 200 characters.",
+            ));
+        }
+        let label = if label.is_empty() {
+            format!("Page {page}")
+        } else {
+            label.into()
+        };
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        require_revision(&tx, book_id, revision)?;
+        let count: i64 = tx.query_row("SELECT count(*) FROM page_bookmarks WHERE book_id=?1 AND document_revision=?2 AND deleted_at IS NULL",params![book_id,revision],|r|r.get(0))?;
+        let already_exists = tx.query_row("SELECT 1 FROM page_bookmarks WHERE book_id=?1 AND document_revision=?2 AND page=?3 AND deleted_at IS NULL",params![book_id,revision,page],|_|Ok(())).optional()?.is_some();
+        if count >= 1000 && !already_exists {
+            return Err(invalid(
+                "This PDF already has 1,000 bookmarks. Remove a bookmark before adding another.",
+            ));
+        }
+        tx.execute("INSERT INTO page_bookmarks(id,book_id,document_revision,page,label,created_at) VALUES(lower(hex(randomblob(16))),?1,?2,?3,?4,?5) ON CONFLICT(book_id,document_revision,page) DO UPDATE SET label=excluded.label,deleted_at=NULL",params![book_id,revision,page,label,now()])?;
+        let state = reader_state(&tx, book_id)?;
+        tx.commit()?;
+        Ok(state)
+    }
+    pub fn remove_bookmark(
+        &mut self,
+        book_id: &str,
+        bookmark_id: &str,
+        revision: &str,
+    ) -> Result<BookReaderState> {
+        self.require_book(book_id)?;
+        if bookmark_id.len() != 32 || !bookmark_id.bytes().all(|c| c.is_ascii_hexdigit()) {
+            return Err(invalid("Invalid bookmark ID."));
+        }
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        require_revision(&tx, book_id, revision)?;
+        let changed = tx.execute("UPDATE page_bookmarks SET deleted_at=COALESCE(deleted_at,?4) WHERE id=?1 AND book_id=?2 AND document_revision=?3",params![bookmark_id,book_id,revision,now()])?;
+        if changed == 0 {
+            return Err(invalid("This bookmark does not belong to the current PDF."));
+        }
+        let state = reader_state(&tx, book_id)?;
+        tx.commit()?;
+        Ok(state)
+    }
+    pub fn get_book_pdf_for_revision(
+        &self,
+        book_id: &str,
+        revision: Option<&str>,
+    ) -> Result<Vec<u8>> {
+        self.require_book(book_id)?;
+        match revision {
+            None => self.get_book_pdf(book_id),
+            Some(revision) => {
+                let tx = self.conn.unchecked_transaction()?;
+                require_revision(&tx, book_id, revision)?;
+                let bytes = tx.query_row(
+                    "SELECT bytes FROM book_documents WHERE book_id=?1 AND document_revision=?2",
+                    params![book_id, revision],
+                    |r| r.get(0),
+                )?;
+                tx.commit()?;
+                Ok(bytes)
+            }
+        }
     }
     pub fn get_book_pdf(&self, book_id: &str) -> Result<Vec<u8>> {
         self.require_book(book_id)?;
@@ -468,6 +610,59 @@ impl Store {
             .optional()?
             .ok_or_else(|| invalid("Import your local PDF for this book first."))
     }
+}
+fn validate_page(page: i64) -> Result<()> {
+    if !(1..=100_000).contains(&page) {
+        return Err(invalid("PDF page numbers must be between 1 and 100,000."));
+    }
+    Ok(())
+}
+fn require_revision(conn: &Connection, book_id: &str, revision: &str) -> Result<()> {
+    if revision.len() != 32 || !revision.bytes().all(|c| c.is_ascii_hexdigit()) {
+        return Err(invalid("Invalid PDF document revision."));
+    }
+    let current: Option<String> = conn
+        .query_row(
+            "SELECT document_revision FROM book_documents WHERE book_id=?1",
+            [book_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match current {
+        Some(current) if current==revision => Ok(()),
+        None => Err(invalid("Import a local PDF for this book first.")),
+        Some(_) => Err(AppError {code:"stale_document",message:"This PDF was replaced in another window. Reopen the book before saving pages or bookmarks.".into()}),
+    }
+}
+fn reader_state(conn: &Connection, book_id: &str) -> Result<BookReaderState> {
+    let revision: Option<String> = conn
+        .query_row(
+            "SELECT document_revision FROM book_documents WHERE book_id=?1",
+            [book_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(revision) = revision else {
+        return Ok(BookReaderState {
+            page: 1,
+            document_revision: None,
+            bookmarks: Vec::new(),
+        });
+    };
+    let page = conn
+        .query_row(
+            "SELECT page FROM reader_positions WHERE book_id=?1 AND document_revision=?2",
+            params![book_id, revision],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or(1);
+    let bookmarks=conn.prepare("SELECT id,page,label,created_at FROM page_bookmarks WHERE book_id=?1 AND document_revision=?2 AND deleted_at IS NULL ORDER BY page,id")?.query_map(params![book_id,revision],|r|Ok(PageBookmark {id:r.get(0)?,page:r.get(1)?,label:r.get(2)?,created_at:r.get(3)?}))?.collect::<std::result::Result<Vec<_>,_>>()?;
+    Ok(BookReaderState {
+        page,
+        document_revision: Some(revision),
+        bookmarks,
+    })
 }
 fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value[key]
@@ -639,7 +834,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {
@@ -708,6 +903,289 @@ mod tests {
         let state = Store::open(&path).unwrap().dashboard().unwrap();
         assert_eq!(state.attempts.len(), 1);
         assert_eq!(state.total_xp, 100);
+    }
+    const TEST_PDF: &[u8] = b"%PDF-1.7\nlocal reader fixture";
+    #[test]
+    fn reader_state_defaults_and_pages_bookmarks_persist_without_xp() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("reader.sqlite3");
+        let revision;
+        {
+            let mut store = Store::open(&path).unwrap();
+            let empty = store.get_book_reader_state("csapp").unwrap();
+            assert_eq!(empty.page, 1);
+            assert!(empty.document_revision.is_none());
+            assert!(empty.bookmarks.is_empty());
+            revision = store
+                .import_book_pdf("csapp", "test.pdf", TEST_PDF)
+                .unwrap()
+                .document_revision;
+            store.set_book_page("csapp", 12, &revision).unwrap();
+            store
+                .add_bookmark("csapp", 12, "Measured locality", &revision)
+                .unwrap();
+            let state = store.add_bookmark("csapp", 3, "", &revision).unwrap();
+            assert_eq!(state.bookmarks[0].page, 3);
+            assert_eq!(state.bookmarks[0].label, "Page 3");
+            assert_eq!(state.bookmarks[1].page, 12);
+            assert_eq!(store.dashboard().unwrap().total_xp, 0);
+            assert_eq!(store.dashboard().unwrap().streak_days, 0);
+        }
+        let store = Store::open(&path).unwrap();
+        let state = store.get_book_reader_state("csapp").unwrap();
+        assert_eq!(state.page, 12);
+        assert_eq!(state.document_revision.as_deref(), Some(revision.as_str()));
+        assert_eq!(state.bookmarks.len(), 2);
+        assert_eq!(state.bookmarks[1].label, "Measured locality");
+    }
+    #[test]
+    fn bookmark_upsert_remove_and_readd_keep_one_stable_page_bookmark() {
+        let mut store = memory();
+        let revision = store
+            .import_book_pdf("csapp", "test.pdf", TEST_PDF)
+            .unwrap()
+            .document_revision;
+        let first = store
+            .add_bookmark("csapp", 7, "First label", &revision)
+            .unwrap();
+        let id = first.bookmarks[0].id.clone();
+        let created = first.bookmarks[0].created_at.clone();
+        let updated = store
+            .add_bookmark("csapp", 7, "  Revised label  ", &revision)
+            .unwrap();
+        assert_eq!(updated.bookmarks.len(), 1);
+        assert_eq!(updated.bookmarks[0].id, id);
+        assert_eq!(updated.bookmarks[0].created_at, created);
+        assert_eq!(updated.bookmarks[0].label, "Revised label");
+        assert!(store
+            .remove_bookmark("csapp", &id, &revision)
+            .unwrap()
+            .bookmarks
+            .is_empty());
+        assert!(store
+            .remove_bookmark("csapp", &id, &revision)
+            .unwrap()
+            .bookmarks
+            .is_empty());
+        let revived = store
+            .add_bookmark("csapp", 7, "Recovered", &revision)
+            .unwrap();
+        assert_eq!(revived.bookmarks.len(), 1);
+        assert_eq!(revived.bookmarks[0].id, id);
+    }
+    #[test]
+    fn reader_rejects_invalid_pages_labels_and_unknown_documents_without_writes() {
+        let mut store = memory();
+        assert!(store.get_book_reader_state("missing").is_err());
+        assert!(store.set_book_page("csapp", 1, &"0".repeat(32)).is_err());
+        let revision = store
+            .import_book_pdf("csapp", "test.pdf", TEST_PDF)
+            .unwrap()
+            .document_revision;
+        for page in [-1, 0, 100_001, i64::MAX] {
+            assert!(store.set_book_page("csapp", page, &revision).is_err());
+            assert!(store.add_bookmark("csapp", page, "bad", &revision).is_err());
+        }
+        assert!(store
+            .add_bookmark("csapp", 2, &"x".repeat(201), &revision)
+            .is_err());
+        assert!(store
+            .add_bookmark("csapp", 2, "two\nlines", &revision)
+            .is_err());
+        assert!(store
+            .add_bookmark("csapp", 2, "control\0text", &revision)
+            .is_err());
+        assert!(store.set_book_page("missing", 2, &revision).is_err());
+        assert!(store.set_book_page("csapp", 2, "not-a-revision").is_err());
+        let state = store.get_book_reader_state("csapp").unwrap();
+        assert_eq!(state.page, 1);
+        assert!(state.bookmarks.is_empty());
+        // The backend caps numerical input; the frontend verifies the actual PDF length.
+        store.set_book_page("csapp", 100_000, &revision).unwrap();
+        assert_eq!(store.get_book_reader_state("csapp").unwrap().page, 100_000);
+    }
+    #[test]
+    fn identical_reimport_preserves_state_but_replacement_isolates_old_revision() {
+        let mut store = memory();
+        let first = store
+            .import_book_pdf("csapp", "first.pdf", TEST_PDF)
+            .unwrap();
+        let revision = first.document_revision.clone();
+        store.set_book_page("csapp", 8, &revision).unwrap();
+        let bookmark = store
+            .add_bookmark("csapp", 8, "Old edition", &revision)
+            .unwrap()
+            .bookmarks
+            .remove(0);
+        let same = store
+            .import_book_pdf("csapp", "same.pdf", TEST_PDF)
+            .unwrap();
+        assert_eq!(same.document_revision, revision);
+        assert_eq!(same.imported_at, first.imported_at);
+        assert_eq!(store.get_book_reader_state("csapp").unwrap().page, 8);
+        assert_eq!(
+            store
+                .get_book_reader_state("csapp")
+                .unwrap()
+                .bookmarks
+                .len(),
+            1
+        );
+        let replacement = store
+            .import_book_pdf("csapp", "new.pdf", b"%PDF-1.7\ndifferent document")
+            .unwrap();
+        assert_ne!(replacement.document_revision, revision);
+        let state = store.get_book_reader_state("csapp").unwrap();
+        assert_eq!(state.page, 1);
+        assert!(state.bookmarks.is_empty());
+        assert_eq!(
+            store.set_book_page("csapp", 4, &revision).unwrap_err().code,
+            "stale_document"
+        );
+        assert_eq!(
+            store
+                .add_bookmark("csapp", 4, "stale", &revision)
+                .unwrap_err()
+                .code,
+            "stale_document"
+        );
+        assert_eq!(
+            store
+                .remove_bookmark("csapp", &bookmark.id, &revision)
+                .unwrap_err()
+                .code,
+            "stale_document"
+        );
+        assert_eq!(
+            store
+                .get_book_pdf_for_revision("csapp", Some(&revision))
+                .unwrap_err()
+                .code,
+            "stale_document"
+        );
+        assert_eq!(
+            store
+                .get_book_pdf_for_revision("csapp", Some(&replacement.document_revision))
+                .unwrap(),
+            b"%PDF-1.7\ndifferent document"
+        );
+        let count: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM page_bookmarks WHERE id=?1",
+                [&bookmark.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            count, 1,
+            "Prior metadata must be retained rather than erased during replacement"
+        );
+    }
+    #[test]
+    fn replacement_from_another_connection_rejects_stale_reader_writes() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("replacement.sqlite3");
+        let mut first = Store::open(&path).unwrap();
+        let revision = first
+            .import_book_pdf("csapp", "first.pdf", TEST_PDF)
+            .unwrap()
+            .document_revision;
+        let mut second = Store::open(&path).unwrap();
+        let new_revision = second
+            .import_book_pdf("csapp", "second.pdf", b"%PDF-1.7\nsecond PDF")
+            .unwrap()
+            .document_revision;
+        assert_eq!(
+            first.set_book_page("csapp", 3, &revision).unwrap_err().code,
+            "stale_document"
+        );
+        first.set_book_page("csapp", 2, &new_revision).unwrap();
+        assert_eq!(second.get_book_reader_state("csapp").unwrap().page, 2);
+    }
+    #[test]
+    fn bookmarks_cannot_be_removed_through_another_book() {
+        let mut store = memory();
+        let a = store
+            .import_book_pdf("csapp", "a.pdf", TEST_PDF)
+            .unwrap()
+            .document_revision;
+        let b = store
+            .import_book_pdf("ostep", "b.pdf", TEST_PDF)
+            .unwrap()
+            .document_revision;
+        let bookmark = store
+            .add_bookmark("csapp", 5, "Memory", &a)
+            .unwrap()
+            .bookmarks
+            .remove(0);
+        assert!(store.remove_bookmark("ostep", &bookmark.id, &b).is_err());
+        assert_eq!(
+            store
+                .get_book_reader_state("csapp")
+                .unwrap()
+                .bookmarks
+                .len(),
+            1
+        );
+        assert!(store
+            .get_book_reader_state("ostep")
+            .unwrap()
+            .bookmarks
+            .is_empty());
+    }
+    #[test]
+    fn migration_two_preserves_version_one_pdf_notes_and_xp() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("old.sqlite3");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(include_str!("../migrations/001_initial.sql"))
+                .unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute(
+                "INSERT INTO books(id,title,metadata_json) VALUES('csapp','Original book','{}')",
+                [],
+            )
+            .unwrap();
+            conn.execute("INSERT INTO topics(id,book_id,title,metadata_json) VALUES('cache-locality','csapp','Caches','{}')", []).unwrap();
+            conn.execute(
+                "INSERT INTO topic_progress(topic_id,status) VALUES('cache-locality','read')",
+                [],
+            )
+            .unwrap();
+            conn.execute("INSERT INTO notes(topic_id,body,updated_at) VALUES('cache-locality','Keep my observation','2026-11-10')", []).unwrap();
+            conn.execute("INSERT INTO xp_ledger(event_key,amount,created_at) VALUES('read:cache-locality',20,'2026-11-10')", []).unwrap();
+            conn.execute("INSERT INTO book_documents(book_id,file_name,imported_at,bytes) VALUES('csapp','old.pdf','2026-11-10',?1)", [TEST_PDF]).unwrap();
+        }
+        let revision;
+        {
+            let store = Store::open(&path).unwrap();
+            assert_eq!(store.dashboard().unwrap().total_xp, 20);
+            assert_eq!(
+                store.dashboard().unwrap().notes[0].body,
+                "Keep my observation"
+            );
+            assert_eq!(store.get_book_pdf("csapp").unwrap(), TEST_PDF);
+            let doc = store.get_book_document("csapp").unwrap().unwrap();
+            assert_eq!(doc.imported_at, "2026-11-10");
+            assert_eq!(doc.file_name, "old.pdf");
+            assert_eq!(doc.document_revision.len(), 32);
+            revision = doc.document_revision;
+            let state = store.get_book_reader_state("csapp").unwrap();
+            assert_eq!(state.page, 1);
+            assert!(state.bookmarks.is_empty());
+        }
+        let store = Store::open(&path).unwrap();
+        assert_eq!(
+            store
+                .get_book_document("csapp")
+                .unwrap()
+                .unwrap()
+                .document_revision,
+            revision
+        );
+        assert_eq!(store.dashboard().unwrap().total_xp, 20);
     }
     #[test]
     fn independent_connections_keep_awards_unique() {

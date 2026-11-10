@@ -62,8 +62,55 @@ mod desktop {
         with_store(state, |s| s.get_book_document(&book_id))
     }
     #[tauri::command]
-    fn get_book_pdf(state: State<'_, AppState>, book_id: String) -> Result<Vec<u8>> {
-        with_store(state, |s| s.get_book_pdf(&book_id))
+    fn get_book_pdf(
+        state: State<'_, AppState>,
+        book_id: String,
+        document_revision: Option<String>,
+    ) -> Result<Vec<u8>> {
+        with_store(state, |s| {
+            s.get_book_pdf_for_revision(&book_id, document_revision.as_deref())
+        })
+    }
+    #[tauri::command]
+    fn get_book_reader_state(
+        state: State<'_, AppState>,
+        book_id: String,
+    ) -> Result<BookReaderState> {
+        with_store(state, |s| s.get_book_reader_state(&book_id))
+    }
+    #[tauri::command]
+    fn set_book_page(
+        state: State<'_, AppState>,
+        book_id: String,
+        page: i64,
+        document_revision: String,
+    ) -> Result<()> {
+        with_store(state, |s| {
+            s.set_book_page(&book_id, page, &document_revision)
+        })
+    }
+    #[tauri::command]
+    fn add_bookmark(
+        state: State<'_, AppState>,
+        book_id: String,
+        page: i64,
+        label: String,
+        document_revision: String,
+    ) -> Result<BookReaderState> {
+        with_store(state, |s| {
+            s.add_bookmark(&book_id, page, &label, &document_revision)
+        })
+    }
+    #[tauri::command]
+    fn remove_bookmark(
+        state: State<'_, AppState>,
+        book_id: String,
+        bookmark_id: String,
+        document_revision: String,
+    ) -> Result<BookReaderState> {
+        with_store(state, |s| {
+            s.remove_bookmark(&book_id, &bookmark_id, &document_revision)
+        })
     }
     pub fn run() {
         tauri::Builder::default()
@@ -99,7 +146,11 @@ mod desktop {
                 submit_quiz,
                 import_book_pdf,
                 get_book_document,
-                get_book_pdf
+                get_book_pdf,
+                get_book_reader_state,
+                set_book_page,
+                add_bookmark,
+                remove_bookmark
             ])
             .run(tauri::generate_context!())
             .expect("Silicon Quest could not initialize its local desktop window");

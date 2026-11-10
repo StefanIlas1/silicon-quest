@@ -1,6 +1,6 @@
 # Architecture
 
-Silicon Quest uses React/TypeScript for its interface and Tauri/Rust for the desktop boundary. SQLite stores progress, notes, quiz attempts, XP events, achievements and imported PDF data locally. The Tauri application creates its database under the platform application-data directory, outside the source tree.
+Silicon Quest uses React/TypeScript for its interface and Tauri/Rust for the desktop boundary. SQLite stores progress, notes, quiz attempts, XP events, achievements, imported PDF data, page positions and bookmarks locally. The Tauri application creates its database under the platform application-data directory, outside the source tree.
 
 ## Curriculum boundary
 
@@ -15,11 +15,11 @@ The source roadmap discusses unverified prices, board support and tool versions.
 
 ## Local persistence and grading
 
-Tauri commands expose dashboard reads, topic-status changes, note updates, quiz retrieval/submission and local PDF import/read. SQLite migrations version the schema. The backend validates stable topic/book IDs and quiz answers, grades against the bundled key, and persists results. Quiz mastery and self-reported topic status remain distinct fields.
+Tauri commands expose dashboard reads, topic-status changes, note updates, quiz retrieval/submission, local PDF import/read and revision-bound reader state. SQLite migrations version the schema. The backend validates stable topic/book IDs and quiz answers, grades against the bundled key, and persists results. Quiz mastery and self-reported topic status remain distinct fields.
 
 XP is an event ledger rather than a mutable client total. Quiz attempt identifiers support safe retries, and unique award keys prevent repeat passing attempts from farming the same reward. Changes that span attempts, mastery and XP use a transaction. UI progress always needs to be reloaded from the authoritative store after mutation.
 
-PDF import records the local document against a known book. Text extraction or automatic chapter mapping must not silently replace the provisional curriculum; future mappings need explicit evidence and user review. There is no cloud account or remote sync architecture in this version.
+PDF import records the local document against a known book. Schema migration 2 preserves existing documents/progress and adds opaque document revisions, page positions and labeled page bookmarks. Writes validate the current revision in the same transaction as the mutation, rejecting stale windows after replacement. Reimporting current identical bytes preserves state; different bytes create a fresh revision. Older revision metadata stays in SQLite but has no restore interface. PDF.js checks actual page bounds; the backend also enforces integer bounds. Reader actions award no XP and claim no mastery. Text extraction or automatic chapter mapping must not silently replace the provisional curriculum; future mappings need explicit evidence and user review. There is no cloud account or remote sync architecture in this version.
 
 ## Publication boundary
 
