@@ -350,7 +350,7 @@ mod tests {
             s.conn
                 .pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))
                 .unwrap(),
-            8
+            9
         );
         assert_eq!(
             s.conn
@@ -454,7 +454,7 @@ mod backup_tests {
         )
         .unwrap();
         let preview = s.inspect_backup_file(&backup).unwrap();
-        assert_eq!(preview.source_schema_version, 8);
+        assert_eq!(preview.source_schema_version, 9);
         s.restore_backup(&preview.preview_token).unwrap();
         drop(s);
         let restored = Store::open(&live).unwrap();

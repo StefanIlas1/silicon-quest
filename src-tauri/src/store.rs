@@ -179,7 +179,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 8 {
+        if version > 9 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -229,6 +229,12 @@ impl Store {
             let tx = conn.transaction()?;
             tx.execute_batch(include_str!("../migrations/008_chapters.sql"))?;
             tx.pragma_update(None, "user_version", 8)?;
+            tx.commit()?;
+        }
+        if version < 9 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/009_artwork.sql"))?;
+            tx.pragma_update(None, "user_version", 9)?;
             tx.commit()?;
         }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
@@ -1129,7 +1135,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 8);
+        assert_eq!(version, 9);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {
@@ -1554,6 +1560,9 @@ mod tests {
     #[test]
     fn focus_sessions_validate_topics_and_never_award_progress() {
         let mut store = memory();
+        let instant = std::time::Instant::now();
+        let wall = Utc::now();
+        store.focus.set_test_clock(instant, wall);
         assert!(store.start_focus_session("unknown", "focus-0001").is_err());
         let started = store
             .start_focus_session("cache-locality", "focus-0001")
@@ -1564,6 +1573,27 @@ mod tests {
         let dashboard = store.dashboard().unwrap();
         assert_eq!(dashboard.total_xp, 0);
         assert_eq!(dashboard.streak_days, 0);
+        assert_eq!(store.get_focus_summary().unwrap().total_seconds, 0);
+        assert!(dashboard.achievements.is_empty());
+        assert!(dashboard
+            .topics
+            .iter()
+            .all(|t| t.status == "not_started" && t.mastery == "untested"));
+
+        // A measured interval does create study activity, while progress and
+        // mastery still require their separate reading/quiz actions.
+        store
+            .start_focus_session("cache-locality", "focus-0002")
+            .unwrap();
+        store.focus.set_test_clock(
+            instant + std::time::Duration::from_secs(10),
+            wall + Duration::seconds(10),
+        );
+        let focused = store.tick_focus_session("focus-0002", 1, true).unwrap();
+        assert_eq!(focused.total_seconds, 10);
+        let dashboard = store.dashboard().unwrap();
+        assert!(!dashboard.activity_days.is_empty());
+        assert_eq!(dashboard.total_xp, 0);
         assert!(dashboard.achievements.is_empty());
         assert!(dashboard
             .topics

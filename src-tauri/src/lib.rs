@@ -1,3 +1,4 @@
+pub mod artwork;
 pub mod backup;
 pub mod chapters;
 pub mod credentials;
@@ -41,6 +42,88 @@ mod desktop {
     #[tauri::command]
     fn get_dashboard(state: State<'_, AppState>) -> Result<Dashboard> {
         with_store(state, |s| s.dashboard())
+    }
+    #[tauri::command]
+    fn get_local_artwork(
+        state: State<'_, AppState>,
+        kind: String,
+        item_id: String,
+    ) -> Result<Option<crate::artwork::Artwork>> {
+        with_store(state, |store| store.get_local_artwork(&kind, &item_id))
+    }
+    #[tauri::command]
+    fn remove_local_artwork(
+        state: State<'_, AppState>,
+        kind: String,
+        item_id: String,
+    ) -> Result<()> {
+        with_store(state, |store| store.remove_local_artwork(&kind, &item_id))
+    }
+    #[tauri::command]
+    async fn import_local_artwork(
+        app: tauri::AppHandle,
+        kind: String,
+        item_id: String,
+    ) -> Result<Option<crate::artwork::Artwork>> {
+        tauri::async_runtime::spawn_blocking(move || {
+            use std::io::Read;
+            use tauri_plugin_dialog::DialogExt;
+            if !crate::artwork::known_item(&kind, &item_id) {
+                return Err(crate::backup::error(
+                    "invalid_artwork",
+                    "Choose a known book or course.",
+                ));
+            }
+            let selected = app
+                .dialog()
+                .file()
+                .set_title("Choose private cover artwork")
+                .add_filter("PNG or JPEG image", &["png", "jpg", "jpeg"])
+                .blocking_pick_file();
+            let Some(selected) = selected else {
+                return Ok(None);
+            };
+            let path = selected
+                .into_path()
+                .map_err(|_| crate::backup::error("artwork_io", "Choose a local image file."))?;
+            let file = std::fs::File::open(path).map_err(|_| {
+                crate::backup::error(
+                    "artwork_io",
+                    "The selected image could not be opened. Your previous cover is preserved.",
+                )
+            })?;
+            if !file
+                .metadata()
+                .map_err(|_| {
+                    crate::backup::error("artwork_io", "The selected image could not be read.")
+                })?
+                .is_file()
+            {
+                return Err(crate::backup::error(
+                    "artwork_io",
+                    "Choose a regular local image file.",
+                ));
+            }
+            let mut bytes = Vec::new();
+            file.take(crate::artwork::MAX_INPUT_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| {
+                    crate::backup::error(
+                        "artwork_io",
+                        "The selected image could not be read. Your previous cover is preserved.",
+                    )
+                })?;
+            with_store(app.state::<AppState>(), |store| {
+                store.save_local_artwork(&kind, &item_id, &bytes).map(Some)
+            })
+        })
+        .await
+        .map_err(|_| {
+            crate::backup::error(
+                "artwork_io",
+                "Image import could not finish. Your previous cover is preserved.",
+            )
+        })?
     }
     #[tauri::command]
     fn set_topic_status(
@@ -382,6 +465,9 @@ mod desktop {
             })
             .invoke_handler(tauri::generate_handler![
                 get_dashboard,
+                get_local_artwork,
+                import_local_artwork,
+                remove_local_artwork,
                 get_book_chapters,
                 save_book_chapter,
                 set_topic_status,

@@ -1,0 +1,34 @@
+.book-artwork {
+  width: 118px;
+  height: 154px;
+  flex-shrink: 0;
+}
+
+.book-artwork img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 3px;
+  filter: drop-shadow(3px 4px 5px #0004);
+}
+
+.book-artwork.book-artwork-mini {
+  width: 34px;
+  height: 43px;
+}
+
+.book-list-row > .book-artwork {
+  flex: 0 0 34px;
+}
+
+.book-artwork-workspace {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: -8px 0 20px;
+}
+
+.book-artwork-workspace .artwork-editor {
+  flex: 1;
+}

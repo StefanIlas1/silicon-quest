@@ -64,6 +64,8 @@ pub struct FocusRuntime {
     token: String,
     epoch: String,
     clock: Option<ActiveClock>,
+    #[cfg(test)]
+    sample_override: Option<(Instant, DateTime<Utc>)>,
 }
 impl FocusRuntime {
     pub fn lock(path: &Path) -> Result<(Option<File>, bool)> {
@@ -114,10 +116,24 @@ impl FocusRuntime {
             can_control,
             token,
             clock: None,
+            #[cfg(test)]
+            sample_override: None,
         })
     }
     pub fn can_control(&self) -> bool {
         self.can_control
+    }
+    fn sample(&self) -> ClockSample {
+        #[cfg(test)]
+        if let Some((instant, wall)) = self.sample_override {
+            return ClockSample { instant, wall };
+        }
+        ClockSample::now()
+    }
+    /// Test clock injection keeps store integration tests independent of CPU load.
+    #[cfg(test)]
+    pub(crate) fn set_test_clock(&mut self, instant: Instant, wall: DateTime<Utc>) {
+        self.sample_override = Some((instant, wall));
     }
     fn require_owner(&self) -> Result<()> {
         if !self.can_control {
@@ -178,7 +194,7 @@ pub fn start(
     topic_id: &str,
     request_id: &str,
 ) -> Result<FocusSummary> {
-    start_at(conn, runtime, topic_id, request_id, ClockSample::now())
+    start_at(conn, runtime, topic_id, request_id, runtime.sample())
 }
 fn start_at(
     conn: &mut Connection,
@@ -248,7 +264,7 @@ pub fn tick(
     sequence: i64,
     end: bool,
 ) -> Result<FocusSummary> {
-    tick_at(conn, runtime, session_id, sequence, end, ClockSample::now())
+    tick_at(conn, runtime, session_id, sequence, end, runtime.sample())
 }
 fn tick_at(
     conn: &mut Connection,

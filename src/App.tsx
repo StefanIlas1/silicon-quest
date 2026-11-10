@@ -62,6 +62,8 @@ import ProjectPage from "./ProjectPage";
 import { useProjects } from "./ProjectProvider";
 import CredentialPage from "./CredentialPage";
 import { useCredentials } from "./CredentialProvider";
+import { LocalArtwork, ArtworkEditor } from "./Artwork";
+import "./BookArtwork.css";
 const Reader = lazy(() => import("./Reader"));
 type Page =
   | "dashboard"
@@ -669,13 +671,18 @@ export default function App() {
                       <ArrowRight size={14} />
                     </button>
                   </div>
-                  {books.slice(0, 2).map((b, i) => (
+                  {books.slice(0, 2).map((b) => (
                     <button
                       className="book-list-row"
                       onClick={() => openBook(b.id)}
                       key={b.id}
                     >
-                      <BookCover title={b.title} index={i} mini />
+                      <BookCover
+                        bookId={b.id}
+                        title={b.title}
+                        index={b.order - 1}
+                        mini
+                      />
                       <span>
                         <strong>{b.title}</strong>
                         <small>{b.authors}</small>
@@ -738,14 +745,18 @@ export default function App() {
                       .toLowerCase()
                       .includes(query.toLowerCase()),
                   )
-                  .map((b, i) => (
+                  .map((b) => (
                     <button
                       className="library-card"
                       key={b.id}
                       onClick={() => openBook(b.id)}
                     >
                       <div className="book-cover-area">
-                        <BookCover title={b.title} index={i} />
+                        <BookCover
+                          bookId={b.id}
+                          title={b.title}
+                          index={b.order - 1}
+                        />
                         <span className="book-order">
                           {String(b.order).padStart(2, "0")}
                         </span>
@@ -1093,6 +1104,22 @@ export default function App() {
                   {topicHasBook ? "LOCAL PDF" : "ROADMAP TOPIC"}
                 </span>
               </div>
+              {topicHasBook && (
+                <div className="book-artwork-workspace">
+                  <BookCover
+                    bookId={book.id}
+                    title={book.title}
+                    index={book.order - 1}
+                    mini
+                  />
+                  <ArtworkEditor
+                    kind="book"
+                    itemId={book.id}
+                    title={book.title}
+                    disabled={busy}
+                  />
+                </div>
+              )}
               <div className="study-layout">
                 <section className="study-document">
                   <>
@@ -1488,33 +1515,43 @@ function Stat({
   );
 }
 function BookCover({
+  bookId,
   title,
   index,
   mini = false,
 }: {
+  bookId: string;
   title: string;
   index: number;
   mini?: boolean;
 }) {
   const colors = ["cyan", "orange", "purple", "green"];
   return (
-    <div
-      className={`book-cover ${colors[index % 4]} ${mini ? "mini" : ""}`}
-      aria-hidden="true"
-    >
-      <div className="book-spine" />
-      <div className="cover-top">SYSTEMS / KNOWLEDGE</div>
-      <div className="cover-pattern">
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
-      <strong>{title}</strong>
-      <div className="cover-bottom">
-        SILICON QUEST READING SERIES <Cpu size={16} />
-      </div>
-    </div>
+    <LocalArtwork
+      kind="book"
+      itemId={bookId}
+      title={title}
+      className={`book-artwork ${mini ? "book-artwork-mini" : ""}`}
+      fallback={
+        <div
+          className={`book-cover ${colors[index % 4]} ${mini ? "mini" : ""}`}
+          aria-hidden="true"
+        >
+          <div className="book-spine" />
+          <div className="cover-top">SYSTEMS / KNOWLEDGE</div>
+          <div className="cover-pattern">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+          <strong>{title}</strong>
+          <div className="cover-bottom">
+            SILICON QUEST READING SERIES <Cpu size={16} />
+          </div>
+        </div>
+      }
+    />
   );
 }
 function FlagIcon() {

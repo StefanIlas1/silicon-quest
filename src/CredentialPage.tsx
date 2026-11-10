@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { credentials } from "../curriculum/data";
 import { native } from "./backend";
+import { ArtworkEditor, LocalArtwork } from "./Artwork";
+import "./CredentialArtwork.css";
 import {
   credentialDraftChanged,
   savedCredentialDraft,
@@ -40,6 +42,32 @@ export function calendarDate(value: string | null) {
 const timestamp = (value: string | null) =>
   value ? new Date(value).toLocaleString() : "No update recorded";
 const bytes = (value: string) => new TextEncoder().encode(value).length;
+function CourseArtwork({
+  id,
+  title,
+  compact = false,
+}: {
+  id: string;
+  title: string;
+  compact?: boolean;
+}) {
+  return (
+    <LocalArtwork
+      kind="course"
+      itemId={id}
+      title={title}
+      className={`course-artwork${compact ? " course-artwork-compact" : ""}`}
+      fallback={
+        <span
+          className={`course-artwork course-artwork-fallback${compact ? " course-artwork-compact" : ""}`}
+          aria-hidden="true"
+        >
+          <GraduationCap size={compact ? 24 : 36} strokeWidth={1.25} />
+        </span>
+      }
+    />
+  );
+}
 function localToday() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -173,6 +201,7 @@ export default function CredentialPage({
                 className={definition.id === d.id ? "selected" : ""}
                 onClick={() => c.select(d.id)}
               >
+                <CourseArtwork id={d.id} title={d.title} compact />
                 <span className="eyebrow">
                   {d.optional ? "OPTIONAL PLAN" : "HIGH PRIORITY · ROADMAP"}
                 </span>
@@ -203,8 +232,15 @@ export default function CredentialPage({
             <span className="eyebrow">{definition.kind}</span>
             <span className="small-tag">SELF-REPORTED</span>
           </div>
+          <CourseArtwork id={definition.id} title={definition.title} />
           <h2>{definition.title}</h2>
           <p className="credential-provider">{definition.provider}</p>
+          <ArtworkEditor
+            kind="course"
+            itemId={definition.id}
+            title={definition.title}
+            disabled={otherBusy || c.busy || c.pending}
+          />
           <p>{definition.description}</p>
           <div className="credential-plan-window">
             <CalendarDays size={14} />

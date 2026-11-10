@@ -21,6 +21,8 @@ export type BackupCounts = {
   notes: number;
   pdfs: number;
   pdfBytes: number;
+  artwork?: number;
+  artworkBytes?: number;
   focusSessions: number;
   trackedSeconds: number;
   reviewTopics: number;
@@ -451,6 +453,10 @@ export default function BackupPanel({
                     value: `${preview!.counts.pdfs} · ${fileSize(preview!.counts.pdfBytes)}`,
                   },
                   {
+                    label: "Private cover images",
+                    value: `${preview!.counts.artwork ?? 0} · ${fileSize(preview!.counts.artworkBytes ?? 0)}`,
+                  },
+                  {
                     label: "Focus sessions",
                     value: preview!.counts.focusSessions,
                   },
@@ -722,6 +728,7 @@ export function RestoredBackupScreen({ restored }: { restored: RestartState }) {
             <div className="backup-restored-counts">
               <span>{restored.counts.attempts} quiz attempts</span>
               <span>{restored.counts.pdfs} PDFs</span>
+              <span>{restored.counts.artwork ?? 0} cover images</span>
               <span>{restored.counts.notes} saved note entries</span>
             </div>
           )}

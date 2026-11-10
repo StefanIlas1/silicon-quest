@@ -1,6 +1,6 @@
 # Architecture
 
-Silicon Quest uses React/TypeScript for its interface and Tauri/Rust for the desktop boundary. SQLite stores progress, notes, quiz attempts, XP events, achievements, imported PDF data, page positions, bookmarks, manual chapter indexes, activity days, focus checkpoints and review schedules/events locally. The Tauri application creates its database under the platform application-data directory, outside the source tree.
+Silicon Quest uses React/TypeScript for its interface and Tauri/Rust for the desktop boundary. SQLite stores progress, notes, quiz attempts, XP events, achievements, imported PDF data, private artwork, page positions, bookmarks, manual chapter indexes, activity days, focus checkpoints and review schedules/events locally. The Tauri application creates its database under the platform application-data directory, outside the source tree.
 
 ## Curriculum boundary
 
@@ -32,6 +32,8 @@ Migration 6 adds [project evidence tracking](docs/PROJECTS.md): four canonical p
 Migration 7 adds [personal course/credential tracking](docs/CREDENTIALS.md) for four stable roadmap identities with explicit taxonomy, calendar targets, notes/plain references and immutable report snapshots. Completion is self-reported and changes no XP, quiz mastery or project evidence. Metadata updates version records without revoking personal reports. Saved state/history round-trip in backups; course drafts participate in restore warnings and root-provider teardown.
 
 Migration 8 adds [manual chapter indexes](docs/CHAPTERS.md). Stable user-created chapter IDs preserve notes/status across title and order edits. Optional PDF page ranges bind to a document revision; replacing a PDF preserves chapter records but disables stale page links. Optimistic versions reject stale saves, and writes share the backup gate/epoch protections. Per-book drafts live in the application root and participate in backup/restore warnings. Chapters remain separate from provisional roadmap topics and change neither XP nor quiz/review mastery.
+
+Migration 9 adds [private book/course artwork](docs/ARTWORK.md) keyed by known curriculum identity. The native chooser accepts bounded local PNG/JPEG input; Rust decodes, resizes and re-encodes to normalized PNG without retaining source paths or image metadata. Artwork reads return image bytes through IPC, and React displays revocable blob URLs. Imports and resets share the backup gate/epoch safeguards, do not change learning records or activity, and are included in validated backups. No provider image is bundled or downloaded by the app.
 
 The [activity heatmap](docs/ACTIVITY.md) reads the existing `activity_days` ledger rather than deriving study from navigation or Git history. Qualifying changed reading/notes, new accepted attempts and confirmed focus time insert local calendar days in their mutation transaction. Focus intervals split activity across local midnight while duration rollups keep their documented UTC policy. Dashboard responses supply the authoritative local date and current/longest streaks; UI calendar arithmetic is independent of browser timezone. The interface refreshes on confirmed mutations/checkpoints, window focus and a one-minute interval, preserves confirmed history on refresh failure, and exposes dates through mouse and keyboard inspection.
 

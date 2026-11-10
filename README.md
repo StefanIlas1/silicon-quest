@@ -56,7 +56,11 @@ Track the roadmap’s four course/credential plans with personal status, calenda
 
 ## Backups
 
-Settings can export a standalone SQLite backup, including saved PDFs, chapter indexes and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note, chapter, project and course drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
+Settings can export a standalone SQLite backup, including saved PDFs, private cover images, chapter indexes and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note, chapter, project and course drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
+
+## Book and course artwork
+
+Choose a local PNG or JPEG in a book's study workspace or a course tracker. Images are stored in private SQLite storage, work offline and travel with local backups. Resetting a cover returns to the neutral fallback. The application makes no image downloads or remote image requests. Official book covers and course/provider images installed on this Mac remain outside the repository and release resources; source publication does not redistribute them. See [artwork storage and validation](docs/ARTWORK.md), [book provenance](docs/BOOK_ARTWORK.md) and [course provenance](docs/COURSE_ARTWORK.md).
 
 ## Curriculum and privacy
 
@@ -70,7 +74,7 @@ python3 curriculum/build_seed.py
 
 Desktop page positions and bookmarks are stored against the exact imported PDF. Reimporting the current PDF preserves them; replacing it with different bytes starts a fresh reading position and bookmark list. Browser preview keeps PDFs and bookmarks in memory for the current session only.
 
-Import only PDFs you have permission to use. Books, notes, quiz history and progress belong in local application storage. PDFs, SQLite files, backups, environment files and local personal folders are ignored by Git. Never add a local study database or licensed textbook to the repository.
+Import only PDFs and images you have permission to use. Books, artwork, notes, quiz history and progress belong in local application storage. PDFs, SQLite files, backups, environment files and local personal folders are ignored by Git. Never add a local study database, private cover image or licensed textbook to the repository.
 
 No benchmarks are claimed by this application. Portfolio performance improvements require correctness tests, controlled baselines, reproducible measurements and retained evidence.
 

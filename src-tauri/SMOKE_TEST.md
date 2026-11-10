@@ -37,3 +37,40 @@ Verified through native UI:
 The final different-PDF replacement was selected and committed: a read-only SQLite query confirmed that the new 663-byte document/revision was current and the prior revision's page/bookmark metadata was retained separately. Native visual confirmation of its page-1/empty-bookmark view remains unverified because CUA accessibility and screenshot calls timed out. Automated backend and frontend tests cover the fresh-state replacement behavior. Investigation was stopped at the requested boundary; the isolated app process was interrupted and exited with status 130.
 
 Automated Phase B checks passed: 17 Rust tests with desktop and headless features, formatting, frontend build, and 12 UI tests. The bookmark label-prefill refinement was made after this smoke bundle; it passed frontend checks and tests but was not repeated in native UI. No focus-session UI has been tested by this record.
+
+## Private book and course artwork - 2026-11-10
+
+Rebuilt the current desktop bundle with `npm run tauri -- build --debug` and
+inspected its native macOS UI at `tauri://localhost` using CUA. This artwork
+inspection used the normal application database in read-only UI flows after
+the requested private cover installation. It did not mark reading, run quizzes,
+save notes, change course records, or start focus sessions.
+
+Verified through the native UI:
+
+- All nine actual book covers rendered in the library across its three rows,
+  including PMPP fifth edition, quantitative architecture seventh edition, and
+  Digital Design's ARM edition. Images kept their proportions within the cards.
+- All four course plan cards displayed their installed images, including the
+  grouped optional CUDA / Nsight plan. Course labels and self-report controls
+  remained visible.
+- The dashboard bookshelf displayed its two real covers at the intended compact
+  width, without the previous flex-growth issue.
+- The optional course's local cover chooser opened a native PNG/JPEG file
+  selection sheet. Cancel returned to the course view and preserved its image.
+- Quit through the native application menu; a subsequent CUA inventory confirmed
+  that Silicon Quest was no longer running.
+
+Read-only SQLite checks before and after the smoke found identical row counts
+and content hashes for all 27 non-artwork tables. The database retained nine
+book and four course artwork records, and `PRAGMA integrity_check` returned `ok`.
+No screenshots or private learner content were saved in repository files.
+
+Limits: this smoke did not replace or reset the user's installed artwork, test
+malformed images through the native picker, resize through a narrow-window
+sweep, or exercise focus tracking. Image validation, replacement/reset state,
+and artwork backup/restore are covered by automated tests. The UI reported that
+another process owned focus tracking; those controls were left untouched. The
+initial CUA app-launch call took about 261 seconds; subsequent inspection and
+cleanup calls completed. This record does not claim that a later source change
+was included in the already-built smoke bundle.

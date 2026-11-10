@@ -70,6 +70,7 @@ beforeEach(() => {
     notPursuingCount: 0,
   };
   mock.invoke.mockImplementation(async (name, args) => {
+    if (name === "get_local_artwork") return null;
     if (name === "get_credential_summary") return structuredClone(summary);
     if (name === "get_dashboard") return { ...emptyDashboard };
     if (name === "get_backup_status")
@@ -234,6 +235,7 @@ describe("personal course and credential tracking", () => {
       mock.invoke.mock.calls.every(
         ([name]) =>
           name === "get_credential_summary" ||
+          name === "get_local_artwork" ||
           name === "save_credential_progress",
       ),
     ).toBe(true);
