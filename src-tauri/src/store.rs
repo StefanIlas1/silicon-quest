@@ -164,7 +164,7 @@ impl Store {
     }
 
     #[cfg(test)]
-    fn initialize(conn: Connection) -> Result<Self> {
+    pub(crate) fn initialize(conn: Connection) -> Result<Self> {
         Self::initialize_with_focus(conn, None, true)
     }
     fn initialize_with_focus(
@@ -176,7 +176,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 5 {
+        if version > 6 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -210,6 +210,12 @@ impl Store {
             tx.pragma_update(None, "user_version", 5)?;
             tx.commit()?;
         }
+        if version < 6 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/006_project_tracking.sql"))?;
+            tx.pragma_update(None, "user_version", 6)?;
+            tx.commit()?;
+        }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
         let tx = conn.transaction()?;
         for book in curriculum["books"]
@@ -228,6 +234,7 @@ impl Store {
                 [string(topic, "id")?],
             )?;
         }
+        crate::projects::seed(&tx, &curriculum)?;
         tx.commit()?;
         let focus = crate::focus::FocusRuntime::initialize(&conn, lock, owner)?;
         let data_epoch = crate::backup::read_epoch(&conn)?;
@@ -250,6 +257,84 @@ impl Store {
             ));
         }
         crate::backup::ensure_epoch(&self.conn, &self.data_epoch)
+    }
+    pub fn get_project_summary(&self) -> Result<crate::projects::ProjectSummary> {
+        crate::projects::summary(&self.conn)
+    }
+    fn project_result(
+        &self,
+        effect: crate::projects::Effect,
+    ) -> Result<crate::projects::ProjectMutationResult> {
+        Ok(crate::projects::ProjectMutationResult {
+            summary: self.get_project_summary()?,
+            dashboard: self.dashboard()?,
+            milestone_id: effect.milestone_id,
+            xp_awarded: effect.xp_awarded,
+            replayed: effect.replayed,
+        })
+    }
+    pub fn save_project_milestone(
+        &mut self,
+        id: &str,
+        checks: Vec<crate::projects::TaskCheck>,
+        evidence: &str,
+        status: &str,
+        expected: i64,
+        request: &str,
+    ) -> Result<crate::projects::ProjectMutationResult> {
+        self.ensure_available()?;
+        let _gate = crate::backup::shared_gate(self.write_gate.as_ref())?;
+        let effect = crate::projects::save(
+            &mut self.conn,
+            &self.data_epoch,
+            id,
+            checks,
+            evidence,
+            status,
+            expected,
+            request,
+        )?;
+        self.project_result(effect)
+    }
+    pub fn review_project_milestone(
+        &mut self,
+        id: &str,
+        note: &str,
+        confirmed: bool,
+        expected: i64,
+        request: &str,
+    ) -> Result<crate::projects::ProjectMutationResult> {
+        self.ensure_available()?;
+        let _gate = crate::backup::shared_gate(self.write_gate.as_ref())?;
+        let effect = crate::projects::review(
+            &mut self.conn,
+            &self.data_epoch,
+            id,
+            note,
+            confirmed,
+            expected,
+            request,
+        )?;
+        self.project_result(effect)
+    }
+    pub fn reopen_project_milestone(
+        &mut self,
+        id: &str,
+        reason: &str,
+        expected: i64,
+        request: &str,
+    ) -> Result<crate::projects::ProjectMutationResult> {
+        self.ensure_available()?;
+        let _gate = crate::backup::shared_gate(self.write_gate.as_ref())?;
+        let effect = crate::projects::reopen(
+            &mut self.conn,
+            &self.data_epoch,
+            id,
+            reason,
+            expected,
+            request,
+        )?;
+        self.project_result(effect)
     }
     pub fn get_review_summary(&self) -> Result<crate::review::ReviewSummary> {
         crate::review::summary(&self.conn)
@@ -963,7 +1048,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {

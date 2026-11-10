@@ -27,6 +27,8 @@ Migration 4 adds [scheduled review](docs/REVIEW.md), replaying all existing grad
 
 Migration 5 adds application/workspace identity and [backup/restore](docs/BACKUP.md). Native Rust dialogs choose paths; JavaScript supplies only opaque preview tokens. Validation and legacy migration occur in private staging. A shared writer/startup gate and exclusive restore gate span safety capture and atomic same-file replacement. Fresh candidate epochs reject stale writers; a successful restore fences the process until restart. A root boundary unmounts learner state/providers and supports status recovery when a restore response is uncertain. Backups are plain local SQLite files containing PDF BLOBs, with no encryption or cloud-transfer service.
 
+Migration 6 adds [project evidence tracking](docs/PROJECTS.md): four canonical plans, 35 milestone definitions, 75 child tasks, versioned saved state and immutable self-review snapshots. Completion requires saved evidence, explicit acknowledgement and an exit review after required work; no source, reading, timer or quiz activity fabricates project progress. Definition changes invalidate readiness/completion as needed, and optional stretches remain outside baseline completion. Project mutations and backups use the same restore gates/epochs as other learning data.
+
 ## Publication boundary
 
 Only source, curriculum, lockfiles and documentation belong in Git. `.gitignore` excludes personal material, database files, PDFs, secrets and generated output. Before any push, inspect the staged files, run required checks and confirm no private study data has entered the index.

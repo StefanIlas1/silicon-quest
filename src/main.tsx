@@ -4,15 +4,18 @@ import App from "./App";
 import FocusProvider from "./FocusProvider";
 import ReviewProvider from "./ReviewProvider";
 import RestoreBoundary from "./RestoreBoundary";
+import ProjectProvider from "./ProjectProvider";
 import "./style.css";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <RestoreBoundary>
-      <ReviewProvider>
-        <FocusProvider>
-          <App />
-        </FocusProvider>
-      </ReviewProvider>
+      <ProjectProvider>
+        <ReviewProvider>
+          <FocusProvider>
+            <App />
+          </FocusProvider>
+        </ReviewProvider>
+      </ProjectProvider>
     </RestoreBoundary>
   </React.StrictMode>,
 );

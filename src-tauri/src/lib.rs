@@ -1,5 +1,6 @@
 pub mod backup;
 pub mod focus;
+pub mod projects;
 pub mod review;
 pub mod store;
 
@@ -248,6 +249,62 @@ mod desktop {
         }
         app.restart()
     }
+    #[tauri::command]
+    fn get_project_summary(state: State<'_, AppState>) -> Result<crate::projects::ProjectSummary> {
+        with_store(state, |store| store.get_project_summary())
+    }
+    #[tauri::command]
+    fn save_project_milestone(
+        state: State<'_, AppState>,
+        milestone_id: String,
+        task_checks: Vec<crate::projects::TaskCheck>,
+        evidence_note: String,
+        status: String,
+        expected_version: i64,
+        request_id: String,
+    ) -> Result<crate::projects::ProjectMutationResult> {
+        with_store(state, |store| {
+            store.save_project_milestone(
+                &milestone_id,
+                task_checks,
+                &evidence_note,
+                &status,
+                expected_version,
+                &request_id,
+            )
+        })
+    }
+    #[tauri::command]
+    fn review_project_milestone(
+        state: State<'_, AppState>,
+        milestone_id: String,
+        review_note: String,
+        confirm_reviewed: bool,
+        expected_version: i64,
+        request_id: String,
+    ) -> Result<crate::projects::ProjectMutationResult> {
+        with_store(state, |store| {
+            store.review_project_milestone(
+                &milestone_id,
+                &review_note,
+                confirm_reviewed,
+                expected_version,
+                &request_id,
+            )
+        })
+    }
+    #[tauri::command]
+    fn reopen_project_milestone(
+        state: State<'_, AppState>,
+        milestone_id: String,
+        reason: String,
+        expected_version: i64,
+        request_id: String,
+    ) -> Result<crate::projects::ProjectMutationResult> {
+        with_store(state, |store| {
+            store.reopen_project_milestone(&milestone_id, &reason, expected_version, &request_id)
+        })
+    }
     pub fn run() {
         tauri::Builder::default()
             .plugin(tauri_plugin_dialog::init())
@@ -298,7 +355,11 @@ mod desktop {
                 discard_backup_preview,
                 restore_local_backup,
                 get_backup_status,
-                restart_after_restore
+                restart_after_restore,
+                get_project_summary,
+                save_project_milestone,
+                review_project_milestone,
+                reopen_project_milestone
             ])
             .run(tauri::generate_context!())
             .expect("Silicon Quest could not initialize its local desktop window");

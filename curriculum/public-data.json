@@ -1,4 +1,1084 @@
 {
+  "projectMilestones": [
+    {
+      "id": "p1-order-contract",
+      "projectId": "project-1",
+      "title": "Order operations and correctness contract",
+      "description": "Define the matching engine behavior before timing it. Order modification is supported only if included in the chosen contract.",
+      "doneWhen": "Add, cancel and execute operations have explicit expected behavior; supported modification semantics and corner cases are documented.",
+      "evidenceHints": [
+        "Correctness contract",
+        "Operation tests"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-2"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 2; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p1-order-contract-operations",
+          "title": "Implement the order operations",
+          "doneWhen": "Add, cancel and execute orders according to a written contract; document whether modify is supported."
+        },
+        {
+          "id": "p1-order-contract-corner-cases",
+          "title": "Test defined corner cases",
+          "doneWhen": "Tests exercise the chosen order-book rules and reject invalid operations consistently."
+        }
+      ]
+    },
+    {
+      "id": "p1-replay",
+      "projectId": "project-1",
+      "title": "Deterministic replay and reference validation",
+      "description": "Keep a slower reference implementation to distinguish correctness from speed.",
+      "doneWhen": "The same event stream produces deterministic results and agrees with the slower reference.",
+      "evidenceHints": [
+        "Replay fixture and seed",
+        "Reference comparison output"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-2"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 2; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p1-replay-replay",
+          "title": "Replay a deterministic event stream",
+          "doneWhen": "Persist a controlled event stream or generator seed and verify reproducible engine outputs."
+        },
+        {
+          "id": "p1-replay-reference",
+          "title": "Compare with a reference engine",
+          "doneWhen": "Validate the optimized candidate against the slower reference across the documented workloads."
+        }
+      ]
+    },
+    {
+      "id": "p1-benchmarks",
+      "projectId": "project-1",
+      "title": "Controlled workloads and tail-latency baseline",
+      "description": "Measure a correct baseline under several workload distributions.",
+      "doneWhen": "Raw repeated measurements report throughput and p50/p95/p99 with workload, hardware and compiler configuration.",
+      "evidenceHints": [
+        "Workload generator",
+        "Raw timings",
+        "Benchmark invocation and machine/compiler details"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-2"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 2; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p1-benchmarks-workloads",
+          "title": "Pin the benchmark inputs",
+          "doneWhen": "Record sizes, distributions, seeds and correctness checks for multiple controlled workloads."
+        },
+        {
+          "id": "p1-benchmarks-latency",
+          "title": "Measure throughput and latency distribution",
+          "doneWhen": "Use warmup and repeated runs; retain raw data and p50/p95/p99 rather than one best run."
+        },
+        {
+          "id": "p1-benchmarks-configuration",
+          "title": "Record the test environment",
+          "doneWhen": "Capture hardware, compiler, optimization flags and how setup is excluded from measured work."
+        }
+      ]
+    },
+    {
+      "id": "p1-optimization",
+      "projectId": "project-1",
+      "title": "Three measured optimization investigations",
+      "description": "Investigate layout, allocation, queue structure or other measured bottlenecks; keep regressions as evidence.",
+      "doneWhen": "At least three controlled changes have correctness checks, baseline/change measurements and explanations, including negative results.",
+      "evidenceHints": [
+        "Experiment log",
+        "Profiler capture",
+        "Before/after raw data"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-2"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 2; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p1-optimization-experiments",
+          "title": "Investigate at least three changes",
+          "doneWhen": "For each hypothesis, change one controlled factor and rerun correctness and performance measurements."
+        },
+        {
+          "id": "p1-optimization-negative-results",
+          "title": "Explain retained and rejected changes",
+          "doneWhen": "Retain regressions and use profiler evidence to explain the resulting tradeoffs."
+        }
+      ]
+    },
+    {
+      "id": "p1-exit-review",
+      "projectId": "project-1",
+      "title": "Matching-engine portfolio exit review",
+      "description": "Review the whole project definition of done after the required work milestones, using saved evidence rather than reading or quiz progress.",
+      "doneWhen": "A correct replayable engine, reproducible workloads, throughput/tail latency, environment details and a profiler-backed optimization writeup are available.",
+      "evidenceHints": [
+        "Repository README and test instructions",
+        "Optimization report",
+        "Technical article"
+      ],
+      "optional": false,
+      "kind": "exit_review",
+      "phaseIds": [
+        "phase-2",
+        "phase-7"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 2; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p1-exit-review-reproducibility",
+          "title": "Audit build, tests and replay instructions",
+          "doneWhen": "A reader can build, run correctness tests and reproduce the controlled benchmarks from documented commands."
+        },
+        {
+          "id": "p1-exit-review-results",
+          "title": "Audit the complete performance report",
+          "doneWhen": "Review workload fairness, p50/p95/p99, throughput, hardware/compiler setup, profiler evidence and three investigations including regressions."
+        },
+        {
+          "id": "p1-exit-review-writeup",
+          "title": "Prepare the project story",
+          "doneWhen": "Write problem → baseline → hypothesis → optimization → actual results → limitations without unsupported speedup claims."
+        }
+      ]
+    },
+    {
+      "id": "p2-vector-add",
+      "projectId": "project-2",
+      "title": "Vector-add kernel and GPU timing",
+      "description": "Begin KernelForge with CUDA execution-model practice and a controlled timing method.",
+      "doneWhen": "Vector addition matches a CPU reference at boundary sizes and has reproducible GPU timing.",
+      "evidenceHints": [
+        "CUDA source",
+        "Reference tests",
+        "Timing script"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-vector-add-correctness",
+          "title": "Implement and validate vector addition",
+          "doneWhen": "Check CPU/GPU agreement, including inputs that do not evenly fill a block."
+        },
+        {
+          "id": "p2-vector-add-timing",
+          "title": "Separate kernel and transfer time",
+          "doneWhen": "Document warmup, repetition and the boundaries of the GPU measurement."
+        }
+      ]
+    },
+    {
+      "id": "p2-reduction",
+      "projectId": "project-2",
+      "title": "Parallel reduction",
+      "description": "Build a correct reduction before interpreting its bandwidth or occupancy.",
+      "doneWhen": "The reduction agrees with reference semantics/tolerances and is measured over controlled sizes.",
+      "evidenceHints": [
+        "Reduction tests",
+        "Benchmark output"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-reduction-kernel",
+          "title": "Implement reduction with reference checks",
+          "doneWhen": "Exercise several sizes and numerical edge cases using documented tolerances."
+        },
+        {
+          "id": "p2-reduction-measurement",
+          "title": "Record reduction measurements",
+          "doneWhen": "Retain controlled repeated measurements and explain the measured data-access behavior."
+        }
+      ]
+    },
+    {
+      "id": "p2-scan",
+      "projectId": "project-2",
+      "title": "Parallel prefix scan",
+      "description": "Make inclusive/exclusive scan semantics explicit in the kernel suite.",
+      "doneWhen": "A parallel scan has documented semantics, reference validation and repeatable measurements.",
+      "evidenceHints": [
+        "Scan contract and tests",
+        "Raw timings"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-scan-kernel",
+          "title": "Implement and test prefix scan",
+          "doneWhen": "Document inclusive or exclusive behavior and validate edge and nonuniform input sizes against a reference."
+        },
+        {
+          "id": "p2-scan-measurement",
+          "title": "Benchmark the validated scan",
+          "doneWhen": "Record input configuration, timing boundaries and repeated results."
+        }
+      ]
+    },
+    {
+      "id": "p2-gemm",
+      "projectId": "project-2",
+      "title": "Naive and shared-memory tiled GEMM",
+      "description": "Compare a naive matrix multiplication with a tiled implementation using controlled inputs.",
+      "doneWhen": "Both GEMM versions pass numerical checks; the effect of tiling is measured and explained.",
+      "evidenceHints": [
+        "Naive/tiled source",
+        "Numerical tests",
+        "GEMM timing data"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-gemm-naive",
+          "title": "Establish a correct naive GEMM",
+          "doneWhen": "Validate matrix dimensions and reference tolerances before optimization."
+        },
+        {
+          "id": "p2-gemm-tiled",
+          "title": "Implement shared-memory tiling",
+          "doneWhen": "Validate the tiled kernel and compare it with the naive baseline under the same inputs."
+        }
+      ]
+    },
+    {
+      "id": "p2-heavy-kernel",
+      "projectId": "project-2",
+      "title": "Convolution or related compute-heavy kernel",
+      "description": "Choose one additional compute-heavy kernel; this is not a requirement to build several unrelated kernels.",
+      "doneWhen": "One convolution or related kernel has reference tests and measured behavior.",
+      "evidenceHints": [
+        "Kernel selection rationale",
+        "Correctness tests",
+        "Benchmark data"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-heavy-kernel-implementation",
+          "title": "Implement the selected kernel",
+          "doneWhen": "Document the operation and validate its output against a meaningful reference."
+        },
+        {
+          "id": "p2-heavy-kernel-experiment",
+          "title": "Measure a controlled kernel experiment",
+          "doneWhen": "Use fixed inputs and reproducible timing to explain a relevant bottleneck or optimization."
+        }
+      ]
+    },
+    {
+      "id": "p2-baselines",
+      "projectId": "project-2",
+      "title": "Meaningful CPU and NVIDIA library comparisons",
+      "description": "Use relevant optimized baselines rather than an intentionally weak CPU implementation.",
+      "doneWhen": "Comparisons use a relevant optimized CPU baseline and NVIDIA libraries where sensible, including cuBLAS for GEMM.",
+      "evidenceHints": [
+        "Baseline code/configuration",
+        "cuBLAS comparison",
+        "Raw comparison data"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-baselines-cpu",
+          "title": "Establish a fair CPU comparison",
+          "doneWhen": "Document the CPU implementation, hardware, precision and workload; avoid a deliberately unoptimized baseline."
+        },
+        {
+          "id": "p2-baselines-libraries",
+          "title": "Compare with relevant NVIDIA libraries",
+          "doneWhen": "Include cuBLAS for GEMM and explain where library comparisons are or are not applicable."
+        }
+      ]
+    },
+    {
+      "id": "p2-profiling",
+      "projectId": "project-2",
+      "title": "Nsight bottleneck experiments",
+      "description": "Use profiler evidence to interpret memory traffic, bandwidth and occupancy where meaningful.",
+      "doneWhen": "Nsight evidence supports the reported bottlenecks and measured optimizations.",
+      "evidenceHints": [
+        "Nsight Compute captures",
+        "Experiment notes",
+        "Reproduction commands"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-profiling-capture",
+          "title": "Profile meaningful kernel workloads",
+          "doneWhen": "Capture memory bandwidth, bottlenecks and occupancy where relevant on a compatible NVIDIA system."
+        },
+        {
+          "id": "p2-profiling-interpret",
+          "title": "Explain optimization outcomes",
+          "doneWhen": "Connect profiler observations to raw benchmark data, including unsuccessful changes and limitations."
+        }
+      ]
+    },
+    {
+      "id": "p2-exit-review",
+      "projectId": "project-2",
+      "title": "KernelForge portfolio exit review",
+      "description": "Review the complete correct, reproducible kernel suite and technical report.",
+      "doneWhen": "Vector addition, reduction, scan, naive/tiled GEMM and a compute-heavy kernel have tests, fair baselines, measured optimizations and a technical report.",
+      "evidenceHints": [
+        "Suite README/tests",
+        "Benchmark scripts and raw data",
+        "Technical report/article"
+      ],
+      "optional": false,
+      "kind": "exit_review",
+      "phaseIds": [
+        "phase-3",
+        "phase-7"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 3; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p2-exit-review-suite",
+          "title": "Audit the complete kernel suite",
+          "doneWhen": "Confirm all listed kernels and reproducible correctness/benchmark commands are included."
+        },
+        {
+          "id": "p2-exit-review-comparisons",
+          "title": "Audit baseline and profiler evidence",
+          "doneWhen": "Review CPU/library fairness, precision, transfer/kernel boundaries, Nsight data and measurement variation."
+        },
+        {
+          "id": "p2-exit-review-writeup",
+          "title": "Publish an evidence-based technical report",
+          "doneWhen": "Explain problem, baseline, hypothesis, changes, actual results and limitations with setup instructions and retained raw data."
+        }
+      ]
+    },
+    {
+      "id": "p3-reference",
+      "projectId": "project-3",
+      "title": "Supported model and reference baseline",
+      "description": "Choose a small supported model and a compatible NVIDIA environment before serving experiments.",
+      "doneWhen": "The exact model, held-out accuracy test and latency baseline are recorded with environment/precision details.",
+      "evidenceHints": [
+        "Model/version selection",
+        "Reference accuracy output",
+        "Baseline timing/configuration"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-4"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 4; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p3-reference-model",
+          "title": "Confirm model and tool compatibility",
+          "doneWhen": "Record the selected small model and compatible GPU, driver, CUDA and TensorRT environment."
+        },
+        {
+          "id": "p3-reference-baseline",
+          "title": "Measure reference accuracy and latency",
+          "doneWhen": "Fix the test set/model version and retain reference metrics plus a controlled latency baseline."
+        }
+      ]
+    },
+    {
+      "id": "p3-runtime",
+      "projectId": "project-3",
+      "title": "C++ inference runtime and end-to-end correctness",
+      "description": "Build the runtime with TensorRT where compatible with the chosen environment.",
+      "doneWhen": "A working C++ runtime runs the selected model end to end and passes reference correctness checks.",
+      "evidenceHints": [
+        "Runtime source",
+        "Setup instructions",
+        "End-to-end test output"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-4"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 4; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p3-runtime-implementation",
+          "title": "Build the C++ runtime",
+          "doneWhen": "Load and run the supported model in the documented compatible NVIDIA environment."
+        },
+        {
+          "id": "p3-runtime-correctness",
+          "title": "Validate the serving path",
+          "doneWhen": "Check preprocessing/inference outputs and numerical tolerances against the reference."
+        }
+      ]
+    },
+    {
+      "id": "p3-preprocessing",
+      "projectId": "project-3",
+      "title": "Custom CUDA preprocessing",
+      "description": "Integrate preprocessing without silently changing model input semantics.",
+      "doneWhen": "CUDA preprocessing matches the reference and is included in separate and end-to-end timing boundaries.",
+      "evidenceHints": [
+        "Preprocessing kernel/tests",
+        "Numerical comparison",
+        "Timing trace"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-4"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 4; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p3-preprocessing-kernel",
+          "title": "Implement and validate preprocessing",
+          "doneWhen": "Compare CUDA-produced model inputs with the reference implementation on controlled cases."
+        },
+        {
+          "id": "p3-preprocessing-integration",
+          "title": "Measure preprocessing in the pipeline",
+          "doneWhen": "Record its compute/transfer contribution without hiding it from end-to-end latency."
+        }
+      ]
+    },
+    {
+      "id": "p3-concurrency",
+      "projectId": "project-3",
+      "title": "Batching, streams and overlap experiments",
+      "description": "Study request queueing, batching policy, stream behavior and asynchronous transfers under load.",
+      "doneWhen": "Controlled experiments explain batching/stream/overlap tradeoffs without sacrificing correctness.",
+      "evidenceHints": [
+        "Load generator",
+        "Profiler traces",
+        "Experiment log"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-4"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 4; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p3-concurrency-batching",
+          "title": "Explore batching and request load",
+          "doneWhen": "Compare documented batching policies at multiple load levels with correctness and latency checks."
+        },
+        {
+          "id": "p3-concurrency-streams",
+          "title": "Explore streams and transfer overlap",
+          "doneWhen": "Use CUDA streams/events and profiler evidence to measure asynchronous execution and overlap."
+        }
+      ]
+    },
+    {
+      "id": "p3-load-curves",
+      "projectId": "project-3",
+      "title": "Throughput versus latency curves",
+      "description": "Report throughput and tail latency together, separating queueing, transfers and compute.",
+      "doneWhen": "Multiple controlled load levels produce reproducible throughput/latency curves and p95/p99 with fair baselines.",
+      "evidenceHints": [
+        "Raw load measurements",
+        "Throughput/latency plots",
+        "Hardware/software configuration"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-4"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 4; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p3-load-curves-curves",
+          "title": "Generate controlled load curves",
+          "doneWhen": "Retain repeated measurements across load levels, reporting throughput and p95/p99 rather than only peak throughput."
+        },
+        {
+          "id": "p3-load-curves-boundaries",
+          "title": "Audit timing and baseline fairness",
+          "doneWhen": "Separate setup, preprocessing, transfers, inference and end-to-end response time; pin model/precision/test inputs."
+        }
+      ]
+    },
+    {
+      "id": "p3-precision",
+      "projectId": "project-3",
+      "title": "Supported precision/accuracy experiment",
+      "description": "Where supported, evaluate FP32/FP16/INT8 changes with the exact accuracy test set. Unsupported paths are limitations, not measured results.",
+      "doneWhen": "A supported precision change has measured quality/performance tradeoffs on the fixed test set, with numerical conventions documented.",
+      "evidenceHints": [
+        "Precision compatibility note",
+        "Accuracy comparison",
+        "Timing data"
+      ],
+      "optional": true,
+      "kind": "work",
+      "phaseIds": [
+        "phase-4"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 4; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p3-precision-accuracy",
+          "title": "Evaluate a supported precision change",
+          "doneWhen": "Use the exact held-out accuracy set and document numerical error/quality changes."
+        },
+        {
+          "id": "p3-precision-performance",
+          "title": "Measure the supported tradeoff",
+          "doneWhen": "Compare controlled timing and throughput at the selected precisions without claiming unsupported modes."
+        }
+      ]
+    },
+    {
+      "id": "p3-exit-review",
+      "projectId": "project-3",
+      "title": "Inference-runtime portfolio exit review",
+      "description": "Audit the working runtime, profiler evidence and fair comparisons; optional precision studies must be labeled by actual support.",
+      "doneWhen": "The runtime works end to end with tests, profiler data, loaded-system curves, a documented baseline and accuracy/precision limitations.",
+      "evidenceHints": [
+        "Working runtime README",
+        "Profiler/benchmark report",
+        "Runtime demo and technical article"
+      ],
+      "optional": false,
+      "kind": "exit_review",
+      "phaseIds": [
+        "phase-4",
+        "phase-7"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phase 4; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p3-exit-review-reproduce",
+          "title": "Audit runtime setup and correctness",
+          "doneWhen": "A reader can configure the compatible environment and run end-to-end correctness tests."
+        },
+        {
+          "id": "p3-exit-review-report",
+          "title": "Audit complete inference measurements",
+          "doneWhen": "Review batching/streams/overlap, throughput/latency curves, accuracy, precision used and limitations with raw data."
+        },
+        {
+          "id": "p3-exit-review-demonstrate",
+          "title": "Prepare the runtime demonstration and story",
+          "doneWhen": "Record a working demo and write actual baseline/hypothesis/results/limitations without unsupported improvement claims."
+        }
+      ]
+    },
+    {
+      "id": "p4-rtl",
+      "projectId": "project-4",
+      "title": "Verified RTL building blocks",
+      "description": "The early parallel FPGA exercises are milestones of this capstone, not extra portfolio projects.",
+      "doneWhen": "Counters/FSM, an 8-bit ALU and signed fixed-point MAC have self-checking simulations and documented reset/overflow behavior.",
+      "evidenceHints": [
+        "RTL/testbench source",
+        "Simulation output",
+        "Fixed-point/reset notes"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-1",
+        "phase-2",
+        "phase-5"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-rtl-logic",
+          "title": "Verify counters, FSM and 8-bit ALU",
+          "doneWhen": "Use self-checking testbenches with expected outputs and corner cases; explain combinational/sequential behavior."
+        },
+        {
+          "id": "p4-rtl-mac",
+          "title": "Verify signed fixed-point MAC behavior",
+          "doneWhen": "Document overflow/saturation, reset/clock semantics and pipeline behavior against a numerical model."
+        }
+      ]
+    },
+    {
+      "id": "p4-dot-product",
+      "projectId": "project-4",
+      "title": "Pipelined dot product and synthesis reports",
+      "description": "Connect pipelining/HLS scheduling choices to actual resources and timing.",
+      "doneWhen": "A synthesized pipelined dot product has validated output and recorded LUT/FF/DSP/BRAM, timing and initiation interval.",
+      "evidenceHints": [
+        "HLS/RTL source",
+        "Synthesis/timing reports",
+        "Scheduling comparison"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-3",
+        "phase-5"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-dot-product-kernel",
+          "title": "Synthesize a validated dot product",
+          "doneWhen": "Check known vectors and produce a synthesis report using a compatible toolchain."
+        },
+        {
+          "id": "p4-dot-product-reports",
+          "title": "Interpret resource and timing tradeoffs",
+          "doneWhen": "Record achieved timing, II and utilization; explain clock constraints, critical-path/slack, reset/clock-domain risks and measured PIPELINE/UNROLL/partitioning or pipeline choices."
+        }
+      ]
+    },
+    {
+      "id": "p4-fir",
+      "projectId": "project-4",
+      "title": "Fixed-point FIR or preprocessing block",
+      "description": "Verify a reusable arithmetic block within the same capstone; final integration depends on data-path value.",
+      "doneWhen": "A fixed-point FIR/preprocessor agrees with a C++ reference on known vectors.",
+      "evidenceHints": [
+        "FIR/preprocessor source",
+        "C++ reference vectors",
+        "Numerical test output"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-5"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-fir-block",
+          "title": "Implement the fixed-point block",
+          "doneWhen": "Document its representation and verify outputs against a C++ reference."
+        },
+        {
+          "id": "p4-fir-verification",
+          "title": "Record known-vector and corner-case tests",
+          "doneWhen": "Retain test inputs/outputs and describe pipeline or resource tradeoffs; explain whether integration helps."
+        }
+      ]
+    },
+    {
+      "id": "p4-overlay",
+      "projectId": "project-4",
+      "title": "Physical PYNQ-Z2 overlay and control",
+      "description": "Verify board and toolchain support before claiming a working physical design.",
+      "doneWhen": "A compatible bitstream/overlay loads on physical PYNQ-Z2 and a host-side driver controls the design.",
+      "evidenceHints": [
+        "Compatibility decision",
+        "Overlay/bitstream and driver source",
+        "Physical load/control log"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-4",
+        "phase-5"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-overlay-toolchain",
+          "title": "Confirm the supported board build flow",
+          "doneWhen": "Record compatible Vivado/Vitis/PYNQ versions, board files and the x86-64 development environment."
+        },
+        {
+          "id": "p4-overlay-control",
+          "title": "Load and control the physical overlay",
+          "doneWhen": "Use the physical board and documented PYNQ/AXI4-Lite control path, not simulation alone."
+        }
+      ]
+    },
+    {
+      "id": "p4-dma",
+      "projectId": "project-4",
+      "title": "Verified AXI/DMA data path",
+      "description": "Move data from the Zynq ARM processing system to programmable logic and back.",
+      "doneWhen": "A supported physical AXI/stream/DMA path round-trips known vectors that match the C++ reference.",
+      "evidenceHints": [
+        "Host/DMA driver source",
+        "Known-vector output",
+        "Buffer/transfer checks"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-5"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-dma-transfer",
+          "title": "Run a physical PS/PL round trip",
+          "doneWhen": "Verify actual transfer length, data format, alignment and cache-coherency behavior."
+        },
+        {
+          "id": "p4-dma-numerics",
+          "title": "Compare hardware outputs with the reference",
+          "doneWhen": "Retain known vectors and separate hardware-core timing from ARM/host/DMA overhead."
+        }
+      ]
+    },
+    {
+      "id": "p4-dataset",
+      "projectId": "project-4",
+      "title": "Labeled motion windows and leakage-free splits",
+      "description": "Start from offline six-axis IMU recordings; reuse existing sensor experience where practical without requiring live-sensor integration.",
+      "doneWhen": "Motion recordings are labeled and split into train/validation/test sets without leakage.",
+      "evidenceHints": [
+        "Dataset manifest",
+        "Labeling/split policy",
+        "Preprocessing script"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-dataset-recordings",
+          "title": "Collect and label motion windows",
+          "doneWhen": "Document six-axis window construction and class labels from offline recordings."
+        },
+        {
+          "id": "p4-dataset-splits",
+          "title": "Establish independent data splits",
+          "doneWhen": "Record a leakage-free train/validation/test split and preserve its identifiers/seeds."
+        }
+      ]
+    },
+    {
+      "id": "p4-fp32",
+      "projectId": "project-4",
+      "title": "Compact FP32 gesture-classifier baseline",
+      "description": "The suggested 64×6 → Dense32 → Dense16 → 4 network is illustrative, not a guaranteed FPGA fit.",
+      "doneWhen": "A small FP32 model has held-out metrics and a confusion matrix; model/version/input semantics are recorded.",
+      "evidenceHints": [
+        "Training configuration/model version",
+        "Held-out metrics",
+        "Confusion matrix"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-fp32-training",
+          "title": "Train the compact FP32 reference",
+          "doneWhen": "Use the fixed splits and document the actual architecture instead of assuming the illustrative model fits."
+        },
+        {
+          "id": "p4-fp32-evaluation",
+          "title": "Record baseline quality",
+          "doneWhen": "Log held-out metrics and confusion matrix with reproducible preprocessing/model versions."
+        }
+      ]
+    },
+    {
+      "id": "p4-int8",
+      "projectId": "project-4",
+      "title": "INT8 quantization and buffer budget",
+      "description": "Make numerical conventions and memory budgets explicit before fitting hardware.",
+      "doneWhen": "INT8 weights/activations are validated on held-out data, with scaling/fixed-point conventions and buffer-size estimates.",
+      "evidenceHints": [
+        "Quantization configuration",
+        "FP32/INT8 accuracy comparison",
+        "Weight/activation buffer budget"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-int8-quantize",
+          "title": "Quantize and validate INT8",
+          "doneWhen": "Record scales/zero points or fixed-point conventions and evaluate the exact held-out test set."
+        },
+        {
+          "id": "p4-int8-budget",
+          "title": "Estimate on-chip storage needs",
+          "doneWhen": "Estimate weights, activations and intermediate buffers before synthesis; retain resource-driven model revisions."
+        }
+      ]
+    },
+    {
+      "id": "p4-software-baselines",
+      "projectId": "project-4",
+      "title": "Equivalent CPU C++ and CUDA inference",
+      "description": "Use equivalent numerical semantics for a fair cross-platform comparison.",
+      "doneWhen": "CPU and CUDA implementations match the selected model/quantization semantics within documented tolerances.",
+      "evidenceHints": [
+        "C++/CUDA baseline source",
+        "Numerical validation output",
+        "Platform configurations"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-software-baselines-cpu",
+          "title": "Validate the CPU C++ baseline",
+          "doneWhen": "Run reference comparisons with fixed model inputs and documented precision/tolerances."
+        },
+        {
+          "id": "p4-software-baselines-cuda",
+          "title": "Validate the CUDA baseline",
+          "doneWhen": "Run equivalent GPU inference and record hardware, versions and matching numerical semantics."
+        }
+      ]
+    },
+    {
+      "id": "p4-deployment",
+      "projectId": "project-4",
+      "title": "Fit and deploy quantized FPGA inference",
+      "description": "Prioritize a confirmed hls4ml/PYNQ-Z2 flow or a small handwritten HLS datapath if conversion is blocked. Do not assume modern FINN targets this board.",
+      "doneWhen": "A fit-to-device network runs real inference on physical PYNQ-Z2 with numerical validation and synthesis/place-route reports.",
+      "evidenceHints": [
+        "Supported flow or fallback rationale",
+        "Design/overlay/driver source",
+        "Physical inference and timing/utilization reports"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-deployment-implementation",
+          "title": "Build a supported quantized implementation",
+          "doneWhen": "Use confirmed hls4ml tooling or a small HLS fallback; resize the model based on real resource/timing results."
+        },
+        {
+          "id": "p4-deployment-hardware",
+          "title": "Run validated inference on the board",
+          "doneWhen": "Create/load the supported overlay, compare physical outputs with references and record achieved clock/utilization."
+        }
+      ]
+    },
+    {
+      "id": "p4-comparison",
+      "projectId": "project-4",
+      "title": "Fair CPU/GPU/FPGA comparison",
+      "description": "Separate compute-only and end-to-end timing, including transfers; energy is reported only where measurably available.",
+      "doneWhen": "Reproducible comparisons report latency, throughput, numerical accuracy, LUT/FF/DSP/BRAM and clock with fair boundaries and limitations.",
+      "evidenceHints": [
+        "Raw benchmark scripts/data",
+        "Timing/resource/accuracy report",
+        "Power methodology or explicit not-measured note"
+      ],
+      "optional": false,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-comparison-timing",
+          "title": "Compare compute and end-to-end performance",
+          "doneWhen": "Measure CPU/GPU/FPGA under controlled inputs, reporting core, transfer and host/board response boundaries separately."
+        },
+        {
+          "id": "p4-comparison-costs",
+          "title": "Report quality, resources and measurement limits",
+          "doneWhen": "Record accuracy, achieved clock, utilization and power/energy methodology where available; label unmeasured costs."
+        }
+      ]
+    },
+    {
+      "id": "p4-int4",
+      "projectId": "project-4",
+      "title": "INT4 experiment — optional",
+      "description": "Attempt only when the model/tool flow supports it and measured data justifies lower precision.",
+      "doneWhen": "A supported INT4 experiment reports actual held-out quality and resource/performance tradeoffs against INT8.",
+      "evidenceHints": [
+        "Support/rationale note",
+        "INT8/INT4 quality and measurement comparison"
+      ],
+      "optional": true,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-int4-support",
+          "title": "Confirm support and a measured reason",
+          "doneWhen": "Establish that the chosen conversion/model flow supports INT4 and the experiment is justified."
+        },
+        {
+          "id": "p4-int4-experiment",
+          "title": "Evaluate the lower-precision tradeoff",
+          "doneWhen": "Retain held-out metrics and controlled measurements without claiming unsupported device behavior."
+        }
+      ]
+    },
+    {
+      "id": "p4-runtime-weights",
+      "projectId": "project-4",
+      "title": "Runtime-loaded weights — optional",
+      "description": "Attempt after the base accelerator works and resources/tooling permit; this remains part of the same capstone.",
+      "doneWhen": "Weights can change between inference runs without rebuilding the bitstream, with correctness and resource evidence.",
+      "evidenceHints": [
+        "Runtime weight-buffer source",
+        "Changed-weight correctness tests",
+        "Resource/timing comparison"
+      ],
+      "optional": true,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-runtime-weights-fit",
+          "title": "Confirm the base accelerator and spare budget",
+          "doneWhen": "Use a working physical baseline and real synthesis results before adding a runtime weight buffer."
+        },
+        {
+          "id": "p4-runtime-weights-load",
+          "title": "Verify changed weights without a rebuild",
+          "doneWhen": "Change weights between runs, validate output semantics and document the implementation cost."
+        }
+      ]
+    },
+    {
+      "id": "p4-double-buffer",
+      "projectId": "project-4",
+      "title": "Weight double-buffering — stretch",
+      "description": "A stretch extension of optional runtime-loaded weights, never a baseline completion requirement.",
+      "doneWhen": "A supported double-buffered weight path is correct and its benefit/cost is measured against the simpler weight buffer.",
+      "evidenceHints": [
+        "Double-buffer implementation/tests",
+        "Controlled overlap/resource comparison"
+      ],
+      "optional": true,
+      "kind": "work",
+      "phaseIds": [
+        "phase-6"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-double-buffer-baseline",
+          "title": "Establish working runtime-loaded weights",
+          "doneWhen": "Confirm the simpler optional weight-buffer implementation before attempting double buffering."
+        },
+        {
+          "id": "p4-double-buffer-experiment",
+          "title": "Measure double-buffering tradeoffs",
+          "doneWhen": "Validate updates/inference and retain measured overlap, resource and timing outcomes, including regressions."
+        }
+      ]
+    },
+    {
+      "id": "p4-exit-review",
+      "projectId": "project-4",
+      "title": "Single-capstone portfolio exit review",
+      "description": "Review the integrated physical-board capstone. Optional INT4/runtime weights/double buffering do not gate baseline completion.",
+      "doneWhen": "A physical PYNQ-Z2 demo, bitstream/design/driver source, tests, synthesis/timing reports and fair CPU/GPU/FPGA benchmarks are available.",
+      "evidenceHints": [
+        "Physical board demo",
+        "Repository/setup/test instructions",
+        "Synthesis/timing and cross-platform report",
+        "Technical article"
+      ],
+      "optional": false,
+      "kind": "exit_review",
+      "phaseIds": [
+        "phase-6",
+        "phase-7"
+      ],
+      "sourceSection": "ROADMAP.md §3 Phases 5–6 and parallel FPGA track; §9 measurement rules; §10 master checklist",
+      "tasks": [
+        {
+          "id": "p4-exit-review-physical-proof",
+          "title": "Audit physical deployment and correctness",
+          "doneWhen": "Confirm the fit-to-device quantized network, supported overlay/data path, known-vector tests and held-out accuracy on the physical board."
+        },
+        {
+          "id": "p4-exit-review-reproducibility",
+          "title": "Audit all required source and reports",
+          "doneWhen": "Include bitstream/design files, driver, tests, benchmark scripts/raw data, resource/timing reports and fair CPU/GPU/FPGA boundaries."
+        },
+        {
+          "id": "p4-exit-review-story",
+          "title": "Prepare the capstone demo and article",
+          "doneWhen": "Communicate baseline, design choices, actual results, limitations and power methodology; clearly label optional work and unmeasured claims."
+        }
+      ]
+    }
+  ],
   "roadmapMeta": {
     "title": "Silicon Quest",
     "source": "curriculum/source-roadmap.md",

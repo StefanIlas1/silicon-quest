@@ -111,7 +111,7 @@ Backups are standalone plain SQLite files containing the full workspace, includi
 | `get_backup_status()` | `{restartRequired,workspaceReplaced,safetyBackupPath}`; allowed after restore |
 | `restart_after_restore()` | Restarts only when a restored/replaced workspace requires it |
 
-Preview fields: `{previewToken,fileName,createdAt,sourceSchemaVersion,currentSchemaVersion,bytes,counts,interruptedSessions}`. Counts are `{topics,attempts,notes,pdfs,pdfBytes,focusSessions,trackedSeconds,reviewTopics,totalXp}` after candidate migrations. `createdAt` can be null for a legacy database. `interruptedSessions` counts active source sessions that will become interrupted at their saved checkpoint; it is not the count of already-interrupted history. Previews expire after 15 minutes; choosing a new file invalidates the old token. Discarding a preview removes the private staging directory.
+Preview fields: `{previewToken,fileName,createdAt,sourceSchemaVersion,currentSchemaVersion,bytes,counts,interruptedSessions}`. Counts are `{topics,attempts,notes,pdfs,pdfBytes,focusSessions,trackedSeconds,reviewTopics,totalXp,projectMilestones,reviewedMilestones,projectEvidenceNotes}` after candidate migrations. `createdAt` can be null for a legacy database. `interruptedSessions` counts active source sessions that will become interrupted at their saved checkpoint; it is not the count of already-interrupted history. Previews expire after 15 minutes; choosing a new file invalidates the old token. Discarding a preview removes the private staging directory.
 
 The restore report is `{restored:true,restartRequired:true,safetyBackupFileName,safetyBackupPath,counts}`. A successful token replay returns the identical cached report and does not restore twice, covering a lost IPC response. Status/restart remain accessible if UI state is lost, while all normal data commands stay blocked until a process restart.
 
@@ -119,10 +119,10 @@ Export uses SQLite's online backup API to include committed WAL data consistentl
 
 Inspection copies the selected standalone file into a private staging directory before validation or migration. Later changes to the selected source cannot change the prepared candidate. Validation requires:
 
-- Supported schema revisions 1–5, correct application identity for revision 5, and an exact full SQLite schema match, including expected autoindexes.
+- Supported schema revisions 1–6, correct application identity for revision 5 and newer, and an exact full SQLite schema match, including expected autoindexes.
 - No triggers or views, regardless of their names; unexpected tables, indexes and changed definitions are rejected before application code can seed/migrate the candidate.
 - SQLite integrity and foreign-key checks, supported current book/topic IDs, valid PDF signatures/size limits and bounded note/history sizes.
-- At most 2 GiB per backup and one million rows in each quiz, focus or review-event history table. Imported PDFs remain limited to 100 MiB each and notes to 100,000 bytes.
+- At most 2 GiB per backup and one million rows in each quiz, focus, review-event or project-action history table. Imported PDFs remain limited to 100 MiB each and notes to 100,000 bytes.
 
 Newer or modified database schemas require compatible software; extra custom tables/indexes are not merged. Unknown future curriculum IDs are rejected by this version. Legacy candidates migrate only inside staging, preserving the original selected file. Only exported standalone backups should be selected: the live database/aliases and files with nonempty adjacent WAL/journal files are rejected. Validation checks structure and consistency; it does not cryptographically authenticate the file or prove the accuracy of edited learning records.
 
@@ -132,4 +132,32 @@ The candidate gets a fresh workspace epoch before SQLite copies it into the exis
 
 Saved active focus sessions become interrupted without adding offline time. Unsaved notes/UI drafts and time since the last heartbeat are not in the snapshot. The frontend requires explicit replacement and unsaved-draft acknowledgement and does not refresh old workspace state after a restore succeeds.
 
-Tests use isolated temporary databases and cover WAL-inclusive full-data round trips, exact-current-epoch restoration with a second open connection, old and newly opened writer fencing, safety-copy timing, forced partial-copy rollback and retry, source changes after inspection, expired/replaced previews, legacy migration, unsupported/corrupt/foreign-key-invalid files, invalid PDFs, hot journals, oversized files and malicious trigger/view names. Native file-picker/restart UI has been compiled but has not been manually smoke-tested; no GUI automation was used in this increment.
+Tests use isolated temporary databases and cover WAL-inclusive full-data round trips, exact-current-epoch restoration with a second open connection, old and newly opened writer fencing, safety-copy timing, forced partial-copy rollback and retry, source changes after inspection, expired/replaced previews, legacy migration (revisions 1–6), unsupported/corrupt/foreign-key-invalid files, invalid PDFs, hot journals, oversized files and malicious trigger/view names. Native file-picker/restart UI has been compiled but has not been manually smoke-tested; no GUI automation was used in this increment.
+
+
+## Project task and evidence tracking (schema revision 6)
+
+The four roadmap plans contain 35 authored milestones and 75 child tasks. Required counts are 5, 8, 6 and 12 respectively; four additional milestones are optional. Every project has a required portfolio exit review. All task checks start false and all progress/evidence/review fields start empty. Seeding never reads Git or marks work complete from repository activity. The single FPGA capstone remains one project; optional precision/weight-buffer/double-buffer work is not required for its baseline completion.
+
+| Command | Arguments |
+|---|---|
+| `get_project_summary` | none |
+| `save_project_milestone` | `{milestoneId,taskChecks:[{taskId,done}],evidenceNote,status,expectedVersion,requestId}` |
+| `review_project_milestone` | `{milestoneId,reviewNote,confirmReviewed:true,expectedVersion,requestId}` |
+| `reopen_project_milestone` | `{milestoneId,reason,expectedVersion,requestId}` |
+
+Draft status is `not_started`, `in_progress` or `ready_for_review`. The review command alone can set `completed`, meaning explicitly self-reviewed, never externally verified. Each save must contain exactly one check for every child task. A `not_started` record has no checked tasks or evidence. Review readiness requires all task checks and at least 20 characters of concrete evidence. Explicit review then requires a separate rationale of at least 20 characters and acknowledgement that the user checked the evidence against the definition of done. Evidence is capped at 20,000 bytes; review/reopen notes at 10,000 bytes. Reopen reasons require at least 10 characters. Text references to local reports, commands or URLs stay notes; the backend does not fetch them, execute commands or prove the reported results.
+
+Readiness, checking tasks and saving notes earn no XP. A milestone's first explicit self-review earns 50 XP once through a unique ledger key. Tasks and project totals add no separate reward. Reopening, editing evidence/checks, repeat reviews and request retries cannot farm XP. Historical XP remains after honest reopening, while current reviewed state is cleared.
+
+Every mutation uses the expected version and a unique 8–128-character request ID. Stale versions reject rather than overwrite another draft. Same-ID/same-payload replay returns the current summary and original reward effect with `replayed:true`; conflicting reuse rejects. The frontend must retain the exact pending payload/ID when retrying. Mutators return `{summary,dashboard,milestoneId,xpAwarded,replayed}` so XP and project state can refresh from the same accepted action.
+
+`ProjectSummary` contains `{projects,milestones,totalRequiredMilestones,completedRequiredMilestones,totalXpEarned,history}`. Per-project counts separate required and optional work. Milestone state is `{milestoneId,status,taskChecks,evidenceNote,reviewNote,reviewedAt,updatedAt,version}`. History is limited to the latest 100 actions, while counts/XP use all records. Each action includes its immutable state and authored definition snapshot, rationale/reopen reason, time, request ID and reward effect. Action kinds are `saved`, `reviewed`, `reopened`, and automatic `invalidated`.
+
+Project completion requires every required milestone, including its final portfolio exit review. That final review cannot be completed while required work is unfinished. Editing/reopening a reviewed required milestone invalidates an already-completed exit review, so completing the upstream work again cannot silently re-certify the portfolio. Optional work does not block or invalidate required exit review.
+
+Catalog changes are guarded too: any changed definition bumps its version and downgrades review readiness; untouched work stays `not_started`. Changed required criteria, newly added required work, or optional work becoming required invalidate prior completed exit review. Task/milestone IDs cannot move between parents. Unsupported task/milestone removal rejects transactionally rather than deleting evidence or leaving stale invisible checks; such catalog changes need a dedicated migration. Saved evidence, history and first-earned rewards remain.
+
+Schema revision 6 adds the project tables and extends backup validation/reference schemas/counts. Legacy backups from revisions 1–5 migrate in private staging and receive empty project state; no progress is inferred. Project task/evidence/review history and XP round-trip in backup/restore. Restore validation checks project identities/task ownership, note/history size bounds, coherent review-ready/completed records and matching explicit-review snapshots. Project mutations use the same shared writer gate, in-transaction epoch validation and post-restore restart fence as other learning writes.
+
+Tests cover pristine defaults, task/evidence/acknowledgement gates, version and request collisions, one-time rewards after reopening, exit dependencies/invalidation, optional work, concurrent review attempts, forced audit-write rollback, catalog changes/removal rejection, persistence and project evidence backup/restore. No GUI automation or normal learner database was used. A self-review is a user-authored progress record; correctness tests, hardware evidence and reproducible measurements still have to exist outside this tracker.

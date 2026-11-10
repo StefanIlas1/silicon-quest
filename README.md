@@ -38,9 +38,13 @@ Start a focus session from a study topic or the Focus log. Finish it when you ar
 
 A first graded check starts a persisted review schedule for its curated topic. Early passes are practice; subsequent qualifying passes must wait until the review is due. Three qualifying successes demonstrate spaced recall, while a failure resets the current evidence streak. Historical attempts, best scores and earned XP stay intact. See [scheduled review](docs/REVIEW.md) for intervals, migration and latest-check versus repeated-mastery semantics.
 
+## Project evidence
+
+The four roadmap projects have 35 milestones and 75 child tasks, with optional work separated from required completion. Save concrete evidence, then explicitly self-review against the definition of done; each project also requires a whole-project exit review. This records your review, not independent verification. Reading, timers, quiz passes and Git activity never complete portfolio work automatically. See [project evidence](docs/PROJECTS.md) for scope, versions, history and one-time rewards.
+
 ## Backups
 
-Settings can export a standalone SQLite backup, including saved PDFs and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
+Settings can export a standalone SQLite backup, including saved PDFs and learning history. Restore first validates a private staged copy, shows its contents and requires explicit replacement confirmation. A safety copy is retained and a full restart follows a successful restore. Backups are not encrypted; save note and project drafts before exporting. See [local backup and restore](docs/BACKUP.md) for supported files, recovery and verification limits.
 
 ## Curriculum and privacy
 

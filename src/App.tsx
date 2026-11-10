@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowRight,
@@ -50,6 +50,8 @@ import {
 } from "./Review";
 import { nextReadingTopic } from "./recommendation";
 import BackupPanel from "./BackupPanel";
+import ProjectPage from "./ProjectPage";
+import { useProjects } from "./ProjectProvider";
 const Reader = lazy(() => import("./Reader"));
 type Page =
   | "dashboard"
@@ -81,6 +83,8 @@ const trackClass = (track: string) =>
       : "cyan";
 export default function App() {
   const reviews = useReview();
+  const projectState = useProjects();
+  const dashboardGeneration = useRef(0);
   const [page, setPage] = useState<Page>("dashboard");
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [connected, setConnected] = useState(false);
@@ -97,7 +101,12 @@ export default function App() {
     null,
   );
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [appBusy, setBusy] = useState(false);
+  const busy = appBusy || projectState.busy || projectState.pending;
+  function acceptDashboard(next: Dashboard) {
+    ++dashboardGeneration.current;
+    setDashboard(next);
+  }
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [attemptId, setAttemptId] = useState("");
   const book = books.find((b) => b.id === bookId) ?? books[0];
@@ -116,16 +125,20 @@ export default function App() {
     ? String(phases.indexOf(recommendedPhase) + 1).padStart(2, "0")
     : "";
   useEffect(() => {
+    const generation = dashboardGeneration.current;
     if (native)
       api
         .dashboard()
         .then((d) => {
-          setDashboard(d);
+          if (generation === dashboardGeneration.current) setDashboard(d);
           setConnected(true);
         })
         .catch((e) => setError(errorMessage(e)))
         .finally(() => setLoading(false));
   }, []);
+  useEffect(() => {
+    if (projectState.dashboard) acceptDashboard(projectState.dashboard);
+  }, [projectState.dashboard]);
   const savedNote =
     dashboard.notes.find((n) => n.topicId === topicId)?.body ?? "";
   const note = noteDrafts[topicId] ?? savedNote;
@@ -155,7 +168,7 @@ export default function App() {
     if (!writable) return;
     setBusy(true);
     try {
-      setDashboard(await api.status(topicId, status));
+      acceptDashboard(await api.status(topicId, status));
       setNotice(
         status === "read"
           ? "Reading recorded. Test your understanding when you are ready."
@@ -171,7 +184,7 @@ export default function App() {
     if (!writable) return;
     setBusy(true);
     try {
-      setDashboard(await api.note(topicId, note));
+      acceptDashboard(await api.note(topicId, note));
       setNotice("Note saved on this device.");
     } catch (e) {
       setError(errorMessage(e));
@@ -210,7 +223,7 @@ export default function App() {
     try {
       const result = await api.submit(quiz.topicId, payload, attemptId);
       setQuizResult(result);
-      setDashboard(result.dashboard);
+      acceptDashboard(result.dashboard);
       if (result.reviewSummary) reviews.accept(result.reviewSummary);
       else await reviews.refresh();
     } catch (e) {
@@ -338,6 +351,16 @@ export default function App() {
             {error}
           </div>
         )}
+        {projectState.pending && !projectState.busy && (
+          <div className="preview-banner warning">
+            <span>
+              A project action needs confirmation before other saved changes.
+            </span>
+            <button className="text-button" onClick={() => setPage("projects")}>
+              Return to Projects
+            </button>
+          </div>
+        )}
         <main
           className={
             page === "reader" ? "main-content reader-content" : "main-content"
@@ -377,7 +400,7 @@ export default function App() {
                   label="TOTAL EXPERIENCE"
                   value={String(dashboard.totalXp)}
                   suffix="XP"
-                  detail="Reading & knowledge check rewards"
+                  detail="Reading, checks & project self-review"
                   color="cyan"
                 />
                 <Stat
@@ -776,31 +799,7 @@ export default function App() {
                 title="Four projects. Real depth."
                 description="Portfolio work built around correctness, controlled experiments, and reproducible results."
               />
-              <div className="project-grid">
-                {projects.map((p, i) => (
-                  <section
-                    className={`project-card ${i === 0 ? "cyan" : i === 3 ? "purple" : "green"}`}
-                    key={p.id}
-                  >
-                    <div className="card-topline">
-                      <span className="project-number">PROJECT 0{i + 1}</span>
-                      <FolderGit2 size={23} />
-                    </div>
-                    <h2>{p.title}</h2>
-                    <code>{p.repo}</code>
-                    <p>{p.summary}</p>
-                    <div className="milestone-list">
-                      {p.milestones.slice(0, 4).map((m) => (
-                        <div key={m}>
-                          <Circle size={12} />
-                          <span>{m}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="small-tag">EVIDENCE NOT YET RECORDED</div>
-                  </section>
-                ))}
-              </div>
+              <ProjectPage otherBusy={appBusy || loading || !connected} />
               <section className="panel measurement-panel">
                 <h2>The measurement contract</h2>
                 <p>
@@ -829,8 +828,8 @@ export default function App() {
                 <div>
                   <h2>{dashboard.achievements.length} achievements earned</h2>
                   <p>
-                    {dashboard.totalXp} verified XP ·{" "}
-                    {dashboard.attempts.length} submitted knowledge checks
+                    {dashboard.totalXp} earned XP · {dashboard.attempts.length}{" "}
+                    submitted knowledge checks
                   </p>
                 </div>
               </div>
@@ -916,6 +915,7 @@ export default function App() {
               />
               <BackupPanel
                 otherOperationBusy={busy}
+                unsavedProjectDrafts={projectState.unsavedDraftCount}
                 unsavedNotes={
                   Object.entries(noteDrafts).filter(
                     ([id, body]) =>

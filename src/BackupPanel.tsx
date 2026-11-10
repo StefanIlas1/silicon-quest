@@ -25,6 +25,9 @@ export type BackupCounts = {
   trackedSeconds: number;
   reviewTopics: number;
   totalXp: number;
+  projectMilestones?: number;
+  reviewedMilestones?: number;
+  projectEvidenceNotes?: number;
 };
 export type BackupPreview = {
   previewToken: string;
@@ -63,9 +66,11 @@ const date = (value: string | null) =>
   value ? new Date(value).toLocaleString() : "Creation time unavailable";
 export default function BackupPanel({
   unsavedNotes = 0,
+  unsavedProjectDrafts = 0,
   otherOperationBusy = false,
 }: {
   unsavedNotes?: number;
+  unsavedProjectDrafts?: number;
   otherOperationBusy?: boolean;
 }) {
   const focus = useFocus();
@@ -281,7 +286,8 @@ export default function BackupPanel({
           <h3>Save a local backup</h3>
           <p>
             Choose where to save a consistent SQLite snapshot: progress, notes,
-            PDFs, quiz and review history, and confirmed focus time.
+            PDFs, quiz and review history, project evidence, and confirmed focus
+            time.
           </p>
           <button
             className="secondary-button"
@@ -333,6 +339,14 @@ export default function BackupPanel({
         <p className="backup-draft-warning">
           A focus session is active. Exports include confirmed checkpoints only;
           finish this session before restoring.
+        </p>
+      )}
+      {unsavedProjectDrafts > 0 && (
+        <p className="backup-draft-warning">
+          {unsavedProjectDrafts} project{" "}
+          {unsavedProjectDrafts === 1 ? "milestone has" : "milestones have"}{" "}
+          unsaved task, evidence, or review drafts. Only saved project records
+          are exported; restoring discards these drafts.
         </p>
       )}
       {otherOperationBusy && (
@@ -425,6 +439,25 @@ export default function BackupPanel({
                     value: preview!.counts.reviewTopics,
                   },
                   { label: "Saved XP", value: preview!.counts.totalXp },
+                  ...(preview!.counts.projectMilestones !== undefined
+                    ? [
+                        {
+                          label: "Saved milestone entries",
+                          value: preview!.counts.projectMilestones,
+                        },
+                        {
+                          label: "Self-reviewed milestones",
+                          value:
+                            preview!.counts.reviewedMilestones ?? "Unavailable",
+                        },
+                        {
+                          label: "Project evidence notes",
+                          value:
+                            preview!.counts.projectEvidenceNotes ??
+                            "Unavailable",
+                        },
+                      ]
+                    : []),
                 ].map((item) => (
                   <div key={item.label}>
                     <span>{item.label}</span>
@@ -455,6 +488,15 @@ export default function BackupPanel({
                   You currently have {unsavedNotes} unsaved note{" "}
                   {unsavedNotes === 1 ? "draft" : "drafts"}. Restoring and
                   restarting discards them.
+                </p>
+              )}
+              {unsavedProjectDrafts > 0 && (
+                <p className="backup-draft-warning">
+                  You also have {unsavedProjectDrafts} project{" "}
+                  {unsavedProjectDrafts === 1
+                    ? "milestone with unsaved changes"
+                    : "milestones with unsaved changes"}
+                  . These session-only drafts are discarded by restore.
                 </p>
               )}
               {activeFocus && (

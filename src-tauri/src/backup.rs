@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-const CURRENT_SCHEMA: i64 = 5;
+const CURRENT_SCHEMA: i64 = 6;
 const APPLICATION_ID: i64 = 1397836881;
 const MAX_BACKUP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const PREVIEW_LIFETIME: Duration = Duration::from_secs(15 * 60);
@@ -39,6 +39,9 @@ pub struct BackupCounts {
     pub tracked_seconds: i64,
     pub review_topics: i64,
     pub total_xp: i64,
+    pub project_milestones: i64,
+    pub reviewed_milestones: i64,
+    pub project_evidence_notes: i64,
 }
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -232,6 +235,7 @@ fn reference_schema(version: i64) -> Result<Connection> {
         include_str!("../migrations/003_focus_sessions.sql"),
         include_str!("../migrations/004_spaced_review.sql"),
         include_str!("../migrations/005_backup_identity.sql"),
+        include_str!("../migrations/006_project_tracking.sql"),
     ]
     .into_iter()
     .take(version as usize)
@@ -250,10 +254,10 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
     conn.pragma_update(None, "query_only", true)?;
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if !(1..=CURRENT_SCHEMA).contains(&version) {
-        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–5; newer schemas require a newer app."));
+        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–6; newer schemas require a newer app."));
     }
     let app_id: i64 = conn.pragma_query_value(None, "application_id", |r| r.get(0))?;
-    if (version == 5 && app_id != APPLICATION_ID)
+    if (version >= 5 && app_id != APPLICATION_ID)
         || (version < 5 && app_id != 0 && app_id != APPLICATION_ID)
     {
         return Err(invalid(
@@ -325,6 +329,68 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
     {
         return Err(invalid("The backup contains an oversized note."));
     }
+    if version >= 6 {
+        for (table, field) in [
+            ("project_plans", "projects"),
+            ("project_milestones", "projectMilestones"),
+        ] {
+            let allowed = curriculum[field]
+                .as_array()
+                .ok_or_else(|| invalid("Project definitions are unavailable."))?
+                .iter()
+                .filter_map(|v| v["id"].as_str())
+                .collect::<std::collections::HashSet<_>>();
+            let count: i64 =
+                conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))?;
+            if count > allowed.len() as i64 {
+                return Err(invalid(
+                    "This backup contains unsupported project definitions.",
+                ));
+            }
+            let mut statement = conn.prepare(&format!("SELECT id FROM {table}"))?;
+            for id in statement.query_map([], |r| r.get::<_, String>(0))? {
+                if !allowed.contains(id?.as_str()) {
+                    return Err(invalid(
+                        "This backup contains an unsupported project or milestone.",
+                    ));
+                }
+            }
+        }
+        let expected_tasks = curriculum["projectMilestones"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|m| {
+                m["tasks"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(move |t| Some((t["id"].as_str()?, m["id"].as_str()?)))
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        let count: i64 = conn.query_row("SELECT count(*) FROM project_tasks", [], |r| r.get(0))?;
+        if count > expected_tasks.len() as i64 {
+            return Err(invalid("This backup contains unsupported project tasks."));
+        }
+        let mut statement = conn.prepare("SELECT id,milestone_id FROM project_tasks")?;
+        for task in
+            statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+        {
+            let (id, parent) = task?;
+            if expected_tasks.get(id.as_str()).copied() != Some(parent.as_str()) {
+                return Err(invalid(
+                    "This backup contains unsupported or reassigned project tasks.",
+                ));
+            }
+        }
+        if conn.query_row("SELECT count(*) FROM project_actions", [], |r| {
+            r.get::<_, i64>(0)
+        })? > 1_000_000
+        {
+            return Err(invalid("This backup exceeds the project history limit."));
+        }
+        if conn.query_row("SELECT count(*) FROM project_milestone_state WHERE length(CAST(evidence_note AS BLOB))>20000 OR length(CAST(review_note AS BLOB))>10000",[],|r|r.get::<_,i64>(0))?>0 {return Err(invalid("This backup contains oversized project evidence."));}
+    }
     if version >= 5 {
         let epoch = read_epoch(&conn)?;
         if epoch.len() != 32 || !epoch.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -376,6 +442,15 @@ fn counts(conn: &Connection) -> Result<BackupCounts> {
         )?,
         review_topics: scalar(conn, "SELECT count(*) FROM review_schedule")?,
         total_xp: scalar(conn, "SELECT COALESCE(sum(amount),0) FROM xp_ledger")?,
+        project_milestones: scalar(conn, "SELECT count(*) FROM project_milestones")?,
+        reviewed_milestones: scalar(
+            conn,
+            "SELECT count(*) FROM project_milestone_state WHERE status='completed'",
+        )?,
+        project_evidence_notes: scalar(
+            conn,
+            "SELECT count(*) FROM project_milestone_state WHERE length(trim(evidence_note))>0",
+        )?,
     })
 }
 fn write_snapshot(source: &Connection, destination: &Path) -> Result<ExportReport> {
@@ -490,6 +565,8 @@ impl Store {
         candidate.dashboard()?;
         candidate.get_review_summary()?;
         candidate.get_focus_summary()?;
+        candidate.get_project_summary()?;
+        crate::projects::validate_integrity(&candidate.conn)?;
         validate(&staged)?;
         let preview_token: String =
             self.conn
@@ -659,7 +736,7 @@ mod tests {
             .save_note("cache-locality", "Newest current observation")
             .unwrap();
         let preview = store.inspect_backup_file(&file).unwrap();
-        assert_eq!(preview.source_schema_version, 5);
+        assert_eq!(preview.source_schema_version, CURRENT_SCHEMA);
         assert_eq!(preview.counts.pdfs, 1);
         assert_eq!(preview.counts.total_xp, 120);
         assert_eq!(preview.counts.attempts, 1);
@@ -970,7 +1047,7 @@ mod tests {
         let mut store = open(directory.path(), "live.sqlite3");
         let preview = store.inspect_backup_file(&legacy).unwrap();
         assert_eq!(preview.source_schema_version, 1);
-        assert_eq!(preview.current_schema_version, 5);
+        assert_eq!(preview.current_schema_version, CURRENT_SCHEMA);
         assert_eq!(preview.counts.pdfs, 1);
         assert!(preview.created_at.is_none());
         let source =
@@ -1000,7 +1077,7 @@ mod tests {
             }
             let preview = store.inspect_backup_file(&path).unwrap();
             assert_eq!(preview.source_schema_version, version);
-            assert_eq!(preview.current_schema_version, 5);
+            assert_eq!(preview.current_schema_version, CURRENT_SCHEMA);
             assert_eq!(preview.counts.topics, 24);
             let original =
                 Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
@@ -1015,6 +1092,128 @@ mod tests {
                 .unwrap();
         }
         assert_eq!(store.dashboard().unwrap().total_xp, 0);
+    }
+    #[test]
+    fn project_evidence_review_history_and_xp_round_trip_and_restore_fences_project_writes() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut store = populated(directory.path());
+        let milestone = "p1-order-contract";
+        let state = store
+            .get_project_summary()
+            .unwrap()
+            .milestones
+            .into_iter()
+            .find(|m| m.milestone_id == milestone)
+            .unwrap();
+        let checks = state
+            .task_checks
+            .into_iter()
+            .map(|mut t| {
+                t.done = true;
+                t
+            })
+            .collect::<Vec<_>>();
+        let evidence="Recorded correctness commands and outputs at ./reports/engine-tests.txt for explicit self-review.";
+        let rationale="I reviewed all recorded task evidence against the definition of done and documented the remaining limits.";
+        store
+            .save_project_milestone(
+                milestone,
+                checks.clone(),
+                evidence,
+                "ready_for_review",
+                0,
+                "backup-project-save",
+            )
+            .unwrap();
+        store
+            .review_project_milestone(milestone, rationale, true, 1, "backup-project-review")
+            .unwrap();
+        let file = directory.path().join("projects.sqlite3");
+        store.export_backup_file(&file).unwrap();
+        store
+            .reopen_project_milestone(
+                milestone,
+                "Recheck after changing test inputs",
+                2,
+                "backup-project-reopen",
+            )
+            .unwrap();
+        let preview = store.inspect_backup_file(&file).unwrap();
+        assert_eq!(preview.counts.project_milestones, 35);
+        assert_eq!(preview.counts.reviewed_milestones, 1);
+        assert_eq!(preview.counts.project_evidence_notes, 1);
+        assert_eq!(preview.counts.total_xp, 170);
+        let mut observer = open(directory.path(), "live.sqlite3");
+        store.restore_backup(&preview.preview_token).unwrap();
+        assert_eq!(
+            store
+                .save_project_milestone(
+                    milestone,
+                    checks.clone(),
+                    evidence,
+                    "in_progress",
+                    3,
+                    "queued-project-save"
+                )
+                .unwrap_err()
+                .code,
+            "restart_required"
+        );
+        assert_eq!(
+            observer
+                .save_project_milestone(
+                    milestone,
+                    checks,
+                    evidence,
+                    "in_progress",
+                    3,
+                    "stale-project-save"
+                )
+                .unwrap_err()
+                .code,
+            "workspace_replaced"
+        );
+        drop(observer);
+        drop(store);
+        let restored = open(directory.path(), "live.sqlite3");
+        let projects = restored.get_project_summary().unwrap();
+        let state = projects
+            .milestones
+            .iter()
+            .find(|m| m.milestone_id == milestone)
+            .unwrap();
+        assert_eq!(state.status, "completed");
+        assert_eq!(state.evidence_note, evidence);
+        assert_eq!(state.review_note.as_deref(), Some(rationale));
+        assert_eq!(projects.total_xp_earned, 50);
+        assert_eq!(projects.history.len(), 2);
+        assert_eq!(restored.dashboard().unwrap().total_xp, 170);
+    }
+    #[test]
+    fn inconsistent_project_completions_and_reassigned_tasks_are_rejected_without_live_changes() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut store = populated(directory.path());
+        let file = directory.path().join("projects-invalid.sqlite3");
+        store.export_backup_file(&file).unwrap();
+        {
+            let conn = Connection::open(&file).unwrap();
+            conn.execute("UPDATE project_milestone_state SET status='completed' WHERE milestone_id='p1-order-contract'",[]).unwrap();
+        }
+        assert!(store.inspect_backup_file(&file).is_err());
+        store.export_backup_file(&file).unwrap();
+        {
+            let conn = Connection::open(&file).unwrap();
+            conn.execute("UPDATE project_tasks SET milestone_id='p1-replay' WHERE id=(SELECT id FROM project_tasks WHERE milestone_id='p1-order-contract' LIMIT 1)",[]).unwrap();
+        }
+        assert!(store.inspect_backup_file(&file).is_err());
+        assert_eq!(
+            store
+                .get_project_summary()
+                .unwrap()
+                .completed_required_milestones,
+            0
+        );
+        assert_eq!(store.dashboard().unwrap().total_xp, 120);
     }
     #[test]
     fn unsupported_corrupt_and_unexpected_schema_backups_are_rejected_before_live_changes() {

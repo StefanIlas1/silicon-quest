@@ -89,6 +89,37 @@ async function confirm() {
   fireEvent.click(screen.getByRole("button", { name: "Replace local data" }));
 }
 describe("explicit local backups", () => {
+  it("distinguishes project evidence records and unsaved project drafts from topic notes", async () => {
+    const implementation = mock.invoke.getMockImplementation()!;
+    mock.invoke.mockImplementation(async (name, args) =>
+      name === "inspect_local_backup"
+        ? {
+            ...preview,
+            counts: {
+              ...preview.counts,
+              projectMilestones: 3,
+              reviewedMilestones: 1,
+              projectEvidenceNotes: 2,
+            },
+          }
+        : implementation(name, args),
+    );
+    render(<BackupPanel unsavedProjectDrafts={2} />);
+    expect(
+      screen.getByText(
+        /2 project milestones have unsaved task, evidence, or review drafts/,
+      ),
+    ).toBeTruthy();
+    await inspect();
+    expect(screen.getByText("Saved milestone entries")).toBeTruthy();
+    expect(screen.getByText("Self-reviewed milestones")).toBeTruthy();
+    expect(screen.getByText("Project evidence notes")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "You also have 2 project milestones with unsaved changes. These session-only drafts are discarded by restore.",
+      ),
+    ).toBeTruthy();
+  });
   it("opens only the restart screen when a refreshed webview sees a replaced workspace", async () => {
     mock.invoke.mockResolvedValue({
       restartRequired: true,
