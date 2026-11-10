@@ -1,0 +1,96 @@
+.pdf-page-notes {
+  position: absolute;
+  top: 0;
+  right: -36px;
+  width: 30px;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+.pdf-page-notes.is-expanded {
+  right: -306px;
+  width: 300px;
+}
+.pdf-page-note-markers {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30px;
+}
+.pdf-page-note-markers.is-crowded {
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.pdf-page-note-marker {
+  position: absolute;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  border: 1px solid #d9b956;
+  border-radius: 5px;
+  color: #3b2d0b;
+  background: #ffe7a1;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.pdf-page-note-marker[aria-expanded="true"] {
+  background: #f4c75a;
+}
+.pdf-page-note-marker:focus-visible,
+.pdf-page-note-close:focus-visible,
+.pdf-page-note-expanded:focus-visible {
+  outline: 2px solid #cf8c32;
+  outline-offset: 2px;
+}
+.pdf-page-note-expanded {
+  position: absolute;
+  left: 36px;
+  width: 264px;
+  max-height: min(260px, 100%);
+  overflow: auto;
+  border: 1px solid #d9b956;
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff5d6;
+  color: #3b2d0b;
+  box-shadow: 0 2px 8px #0002;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  pointer-events: auto;
+}
+.pdf-page-note-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+.pdf-page-note-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.pdf-page-note-expanded p,
+.pdf-page-note-expanded blockquote {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pdf-page-note-expanded blockquote {
+  border-left: 2px solid #d5ad44;
+  padding-left: 8px;
+  font-size: 11px;
+  color: #67552b;
+}

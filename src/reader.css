@@ -61,6 +61,13 @@
   min-width: 100%;
   margin: 0 0 22px;
 }
+.pdf-continuous-page:has(.pdf-page-notes) {
+  padding-right: 42px;
+  box-sizing: border-box;
+}
+.pdf-continuous-page:has(.pdf-page-notes.is-expanded) {
+  padding-right: 312px;
+}
 .pdf-page-caption {
   display: block;
   color: #a8afb9;
@@ -71,7 +78,8 @@
 }
 .pdf-page-surface {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  isolation: isolate;
   background: #fff;
   margin: 0 auto;
   box-shadow: 0 2px 15px #00000033;
@@ -79,6 +87,13 @@
 .pdf-page-surface canvas {
   margin: 0;
   box-shadow: none;
+}
+.pdf-canvas-layer {
+  position: absolute;
+  inset: 0;
+  /* Clip the previous canvas while an asynchronous zoom render catches up;
+     the page surface stays open for notes in the margin. */
+  overflow: hidden;
 }
 .pdf-text-layer {
   position: absolute;
@@ -108,6 +123,10 @@
 }
 .pdf-text-layer ::selection {
   background: #4285f466;
+  /* PDF glyphs are painted by the canvas. Keep the selectable text invisible,
+     including while selected, so the app's white selection color cannot cover
+     the original dark glyphs. */
+  color: transparent;
 }
 .pdf-page-error {
   position: absolute;

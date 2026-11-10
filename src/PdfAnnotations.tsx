@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MessageSquare, Pencil, Plus, Trash2, X } from "lucide-react";
 import { errorMessage, native } from "./backend";
+import PdfPageNotes from "./PdfPageNotes";
 import "./PdfAnnotations.css";
 
 export type HighlightRect = {
@@ -452,22 +453,25 @@ export function PdfAnnotationOverlay({
   page: number;
 }) {
   return (
-    <div className="pdf-annotation-overlay" aria-hidden="true">
-      {annotations
-        .filter((annotation) => annotation.page === page && annotation.quote)
-        .flatMap((annotation) =>
-          annotation.rects.map((rect, index) => (
-            <span
-              key={`${annotation.id}-${index}`}
-              style={{
-                left: `${rect.x * 100}%`,
-                top: `${rect.y * 100}%`,
-                width: `${rect.width * 100}%`,
-                height: `${rect.height * 100}%`,
-              }}
-            />
-          )),
-        )}
-    </div>
+    <>
+      <div className="pdf-annotation-overlay" aria-hidden="true">
+        {annotations
+          .filter((annotation) => annotation.page === page && annotation.quote)
+          .flatMap((annotation) =>
+            annotation.rects.map((rect, index) => (
+              <span
+                key={`${annotation.id}-${index}`}
+                style={{
+                  left: `${rect.x * 100}%`,
+                  top: `${rect.y * 100}%`,
+                  width: `${rect.width * 100}%`,
+                  height: `${rect.height * 100}%`,
+                }}
+              />
+            )),
+          )}
+      </div>
+      <PdfPageNotes annotations={annotations} page={page} />
+    </>
   );
 }

@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import useReaderFullscreen from "./useReaderFullscreen";
+import PdfPageNotes from "./PdfPageNotes";
 
 const mock = vi.hoisted(() => ({
   native: true,
@@ -50,6 +51,21 @@ function Harness({
           {fullscreen.active ? "Exit" : "Enter"}
         </button>
         <textarea aria-label="Draft" />
+        <PdfPageNotes
+          page={1}
+          annotations={[
+            {
+              id: "page-note",
+              page: 1,
+              body: "Synthetic on-page note",
+              quote: null,
+              rects: [],
+              version: 1,
+              createdAt: "2026-11-10T00:00:00Z",
+              updatedAt: "2026-11-10T00:00:00Z",
+            },
+          ]}
+        />
         <button>Last control</button>
         <div className="continuous-pdf-stage" />
       </div>
@@ -76,6 +92,24 @@ afterEach(() => {
     .fullscreenElement;
 });
 describe("reader full-screen lifecycle", () => {
+  it("closes a focused page note before Escape exits the fullscreen reader", async () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Enter" }));
+    await screen.findByRole("dialog");
+    const marker = screen.getByRole("button", { name: /Read note 1/ });
+    fireEvent.click(marker);
+    const note = screen.getByRole("complementary", {
+      name: "Note 1 on PDF page 1",
+    });
+    fireEvent.keyDown(note, { key: "Escape" });
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(document.activeElement).toBe(marker);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(mock.setFullscreen).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(marker, { key: "Escape" });
+    await screen.findByRole("button", { name: "Enter" });
+    expect(mock.setFullscreen).toHaveBeenLastCalledWith(false);
+  });
   it("contains keyboard navigation and restores outside access and focus", async () => {
     vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
       {},

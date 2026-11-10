@@ -163,3 +163,43 @@ of the legacy note's body and version, empty highlight metadata for that note an
 valid integrity. This verifies native startup migration, not button interaction
 or saving through the UI. The normal application bundle was rebuilt afterward
 with its original name and application identifier.
+
+## Margin notes and highlight contrast - 2026-11-10
+
+Built a distinct `Silicon Quest Annotation QA` bundle with identifier
+`com.siliconquest.annotationqa20261110` and reused only the isolated synthetic
+profile at `/private/tmp/sq-annotation-fix-qa-20261110`. The normal learner app
+remained untouched. This follow-up exercised the recovered schema through the
+native macOS UI rather than only checking startup migration.
+
+Verified through the native UI:
+
+- The preserved legacy page note exposed an accessible numbered page-margin
+  marker. Selecting it opened the saved body beside the PDF.
+- Drag-selected a synthetic text line. The selected glyphs stayed dark beneath
+  the blue selection; they did not turn white.
+- Saved the selection with a synthetic highlight note. Its yellow overlay was
+  translucent and retained black PDF glyphs, and its note marker aligned with
+  the highlighted passage.
+- Read the highlight's quote and body in the exterior margin at 100% and 110%
+  PDF zoom in fullscreen. The note did not cover the PDF content.
+- After rebuilding the final note-keyboard refinement, Escape closed the
+  focused note and returned focus to its marker while remaining fullscreen.
+  A second Escape exited fullscreen. The note's body and quote were left aligned.
+- Quit and restarted the isolated app. Both the legacy page note and the new
+  highlight note reappeared, and the saved yellow highlight remained aligned.
+- Quit the QA app; its process exited successfully.
+
+Read-only SQLite inspection returned `ok` integrity and two saved annotation
+records. The imported PDF exactly matched the generated synthetic seed bytes.
+No learner files, database contents or screenshots were written to the repository.
+
+Limits: this smoke used one short text PDF on macOS, not a large book, scanned
+pages, native replacement, many crowded notes or an assistive-technology session.
+The regular reader can require horizontal scrolling to reach its margin when
+the PDF exceeds the viewport; focusing a marker/opened note brings it into view.
+Collision, deletion and crowded-note behavior were checked automatically.
+
+The final normal debug bundle was rebuilt and its original
+`com.siliconquest.desktop` identifier verified after this QA run. It was not
+launched against learner data for further writes.

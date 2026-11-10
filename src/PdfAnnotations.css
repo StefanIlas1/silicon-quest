@@ -146,10 +146,12 @@
   overflow: hidden;
   pointer-events: none;
   z-index: 1;
+  /* Blend the whole overlay with the canvas. Blending individual rectangles
+     inside this stacking context cannot reach the canvas underneath it. */
+  mix-blend-mode: multiply;
 }
 .pdf-annotation-overlay > span {
   position: absolute;
   background: rgba(245, 194, 58, 0.32);
-  mix-blend-mode: multiply;
   border-radius: 2px;
 }

@@ -101,7 +101,9 @@ function PdfPage({
     >
       {visible && (
         <>
-          <canvas ref={canvas} aria-label={`PDF page ${page}`} />
+          <div className="pdf-canvas-layer">
+            <canvas ref={canvas} aria-label={`PDF page ${page}`} />
+          </div>
           <div
             ref={text}
             className="pdf-text-layer"

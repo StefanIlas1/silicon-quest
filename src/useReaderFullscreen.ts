@@ -145,6 +145,13 @@ export default function useReaderFullscreen(
     toggleButton.current?.focus({ preventScroll: true });
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        // The page-note panel owns Escape while its controls have focus.
+        // Let that nested view close before leaving the fullscreen reader.
+        if (
+          event.target instanceof Element &&
+          event.target.closest(".pdf-page-notes.is-expanded")
+        )
+          return;
         event.preventDefault();
         event.stopPropagation();
         void exitRef.current();
