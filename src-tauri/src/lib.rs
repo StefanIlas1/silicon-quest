@@ -1,3 +1,4 @@
+pub mod focus;
 pub mod store;
 
 #[cfg(feature = "desktop")]
@@ -112,6 +113,36 @@ mod desktop {
             s.remove_bookmark(&book_id, &bookmark_id, &document_revision)
         })
     }
+    #[tauri::command]
+    fn get_focus_summary(state: State<'_, AppState>) -> Result<crate::focus::FocusSummary> {
+        with_store(state, |s| s.get_focus_summary())
+    }
+    #[tauri::command]
+    fn start_focus_session(
+        state: State<'_, AppState>,
+        topic_id: String,
+        request_id: String,
+    ) -> Result<crate::focus::FocusSummary> {
+        with_store(state, |s| s.start_focus_session(&topic_id, &request_id))
+    }
+    #[tauri::command]
+    fn tick_focus_session(
+        state: State<'_, AppState>,
+        session_id: String,
+        sequence: i64,
+    ) -> Result<crate::focus::FocusSummary> {
+        with_store(state, |s| {
+            s.tick_focus_session(&session_id, sequence, false)
+        })
+    }
+    #[tauri::command]
+    fn end_focus_session(
+        state: State<'_, AppState>,
+        session_id: String,
+        sequence: i64,
+    ) -> Result<crate::focus::FocusSummary> {
+        with_store(state, |s| s.tick_focus_session(&session_id, sequence, true))
+    }
     pub fn run() {
         tauri::Builder::default()
             .setup(|app| {
@@ -150,7 +181,11 @@ mod desktop {
                 get_book_reader_state,
                 set_book_page,
                 add_bookmark,
-                remove_bookmark
+                remove_bookmark,
+                get_focus_summary,
+                start_focus_session,
+                tick_focus_session,
+                end_focus_session
             ])
             .run(tauri::generate_context!())
             .expect("Silicon Quest could not initialize its local desktop window");

@@ -18,4 +18,22 @@ Read-only SQLite verification after quitting found 120 XP / 2 attempts / 1 note 
 
 Automated verification: 10 Rust tests pass both with default desktop bindings and `--no-default-features`; formatting check passes. Tests cover migrations/reopen, read/mastery separation, invalid submissions, note/PDF persistence, answer-key redaction, streaks, duplicate XP, attempt collisions, and concurrent duplicate attempts across two connections.
 
-Limits: this smoke test exercised a one-page PDF, not a large book. Page position, highlights and bookmarks are intentionally not implemented. A successful one-question knowledge check is a learning signal, not evidence of project implementation. Frontend refinements made after this smoke bundle (draft handling, lazy loading, import cleanup) are covered separately by frontend build/tests; a final bundle rebuild is appropriate before delivery.
+Historical baseline limits: this initial smoke test exercised a one-page PDF, not a large book. The initial version did not implement page position, highlights or bookmarks; Phase B below adds page position and bookmarks. A successful one-question knowledge check is a learning signal, not evidence of project implementation. Frontend refinements made after this smoke bundle (draft handling, lazy loading, import cleanup) are covered separately by frontend build/tests; a final bundle rebuild is appropriate before delivery.
+
+
+## Phase B reader state - 2026-11-10
+
+Rebuilt the debug macOS app after the reader-state UI/backend changes and used the same isolated test database. Its version-1 data migrated without losing its 120 XP, saved note, mastery, or imported PDF. The normal learner database was never opened by this phase.
+
+Verified through native UI:
+
+- Imported an original three-page PDF fixture and rendered page 3 clearly.
+- Saved page 3 and a labeled page-linked bookmark; the toolbar showed “Page saved locally” and one bookmark.
+- Reimported identical PDF bytes; page 3 and the bookmark remained.
+- Quit and restarted the isolated app; reopening the book restored page 3 and its bookmark.
+- Used Previous page, then the saved bookmark to jump back to page 3.
+- Updated the bookmark label, removed the bookmark, and saved the page again.
+
+The final different-PDF replacement was selected and committed: a read-only SQLite query confirmed that the new 663-byte document/revision was current and the prior revision's page/bookmark metadata was retained separately. Native visual confirmation of its page-1/empty-bookmark view remains unverified because CUA accessibility and screenshot calls timed out. Automated backend and frontend tests cover the fresh-state replacement behavior. Investigation was stopped at the requested boundary; the isolated app process was interrupted and exited with status 130.
+
+Automated Phase B checks passed: 17 Rust tests with desktop and headless features, formatting, frontend build, and 12 UI tests. The bookmark label-prefill refinement was made after this smoke bundle; it passed frontend checks and tests but was not repeated in native UI. No focus-session UI has been tested by this record.

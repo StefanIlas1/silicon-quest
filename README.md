@@ -1,12 +1,12 @@
 # Silicon Quest
 
-A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Read your own PDFs with saved page positions and labeled bookmarks, keep topic notes, and take curated knowledge checks. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
+A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Read your own PDFs with saved page positions and labeled bookmarks, keep topic notes, take curated knowledge checks, and log confirmed study time. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
 
 The interface groups roadmap topics into **provisional modules**, not verified textbook chapters. Progress tracking and quiz mastery are separate: marking reading complete is not evidence of implementation, and a quiz pass is not a completed portfolio milestone. Course prices and hardware/tool compatibility are historical planning assumptions to verify with official sources before purchase.
 
 ## Run locally
 
-Requires Node.js/npm. The desktop application additionally requires Rust and platform-specific Tauri prerequisites.
+Requires Node.js/npm. The desktop application additionally requires Rust 1.89 or newer and platform-specific Tauri prerequisites.
 
 ```sh
 npm install
@@ -28,7 +28,11 @@ npm run build
 cargo test --locked --no-default-features --manifest-path src-tauri/Cargo.toml
 ```
 
-See [TESTING.md](TESTING.md) for the verification scope and [ARCHITECTURE.md](ARCHITECTURE.md) for storage and curriculum boundaries. The [baseline native smoke-test record](src-tauri/SMOKE_TEST.md) documents verified core desktop workflows. Its original feature limits describe that earlier build; persisted reader pages/bookmarks were added afterward and are covered by the reader tests. Follow-up native observations are recorded separately when available.
+See [TESTING.md](TESTING.md) for the verification scope and [ARCHITECTURE.md](ARCHITECTURE.md) for storage and curriculum boundaries. The [native smoke-test record](src-tauri/SMOKE_TEST.md) documents verified core desktop and reader workflows, with explicit limits: replacement fresh-state behavior is covered by automated tests; its final native visual check was interrupted by unavailable computer-use tooling.
+
+## Focus sessions
+
+Start a focus session from a study topic or the Focus log. Finish it when you are done. Saved totals use backend checkpoints; the live clock includes a short unsaved estimate. Closed-app time, long heartbeat gaps and clock discontinuities do not become study credit. Timer actions award no XP or mastery. See [focus tracking](docs/FOCUS.md) for recovery, concurrent-instance behavior and verification boundaries.
 
 ## Curriculum and privacy
 

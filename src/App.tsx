@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Circle,
   Code2,
   Cpu,
@@ -38,6 +39,7 @@ import {
 } from "../curriculum/data";
 import { api, emptyDashboard, native, errorMessage } from "./backend";
 import type { Dashboard, Quiz, QuizResult, Status } from "./backend";
+import { FocusMini, FocusPage, FocusSummary, FocusTopicControl } from "./Focus";
 const Reader = lazy(() => import("./Reader"));
 type Page =
   | "dashboard"
@@ -46,6 +48,7 @@ type Page =
   | "projects"
   | "achievements"
   | "settings"
+  | "focus"
   | "reader";
 type Module = (typeof modules)[number];
 const nav: { id: Page; label: string; icon: LucideIcon }[] = [
@@ -53,6 +56,7 @@ const nav: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: "library", label: "Book library", icon: BookOpen },
   { id: "roadmap", label: "Learning path", icon: Map },
   { id: "projects", label: "Projects", icon: FolderGit2 },
+  { id: "focus", label: "Focus log", icon: Clock3 },
   { id: "achievements", label: "Achievements", icon: Trophy },
 ];
 const quizModuleIds = new Set(quizQuestions.map((q) => q.moduleId));
@@ -227,6 +231,7 @@ export default function App() {
           </span>
           <ChevronRight size={15} />
         </button>
+        <FocusMini onOpen={() => setPage("focus")} />
         <div className="sidebar-bottom">
           <div className="local-note">
             <ShieldCheck size={15} />
@@ -400,6 +405,7 @@ export default function App() {
                   <small>Understanding is the real upgrade.</small>
                 </section>
               </div>
+              <FocusSummary onOpen={() => setPage("focus")} />
               <div className="section-heading">
                 <div>
                   <h2>Your learning tracks</h2>
@@ -801,6 +807,7 @@ export default function App() {
               </section>
             </>
           )}
+          {page === "focus" && <FocusPage />}
           {page === "settings" && (
             <>
               <PageHeading
@@ -946,6 +953,7 @@ export default function App() {
                     </span>
                     <h2>{topic.title}</h2>
                     <p>{topic.summary}</p>
+                    <FocusTopicControl topicId={topicId} />
                     <div className="guide-section">
                       <h3>What to understand</h3>
                       {topic.objectives.map((o) => (

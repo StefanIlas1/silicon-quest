@@ -135,18 +135,29 @@ pub struct PublicQuestion {
 pub struct Store {
     conn: Connection,
     curriculum: Value,
+    focus: crate::focus::FocusRuntime,
 }
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
         let conn = Connection::open(path)?;
-        Self::initialize(conn)
+        let (lock, owner) = crate::focus::FocusRuntime::lock(path)?;
+        Self::initialize_with_focus(conn, lock, owner)
     }
-    fn initialize(mut conn: Connection) -> Result<Self> {
+    #[cfg(test)]
+    fn initialize(conn: Connection) -> Result<Self> {
+        Self::initialize_with_focus(conn, None, true)
+    }
+    fn initialize_with_focus(
+        mut conn: Connection,
+        lock: Option<std::fs::File>,
+        owner: bool,
+    ) -> Result<Self> {
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 2 {
+        if version > 3 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -159,6 +170,12 @@ impl Store {
             let tx = conn.transaction()?;
             tx.execute_batch(include_str!("../migrations/002_reader_state.sql"))?;
             tx.pragma_update(None, "user_version", 2)?;
+            tx.commit()?;
+        }
+        if version < 3 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/003_focus_sessions.sql"))?;
+            tx.pragma_update(None, "user_version", 3)?;
             tx.commit()?;
         }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
@@ -180,7 +197,31 @@ impl Store {
             )?;
         }
         tx.commit()?;
-        Ok(Self { conn, curriculum })
+        let focus = crate::focus::FocusRuntime::initialize(&conn, lock, owner)?;
+        Ok(Self {
+            conn,
+            curriculum,
+            focus,
+        })
+    }
+    pub fn get_focus_summary(&self) -> Result<crate::focus::FocusSummary> {
+        crate::focus::summary(&self.conn, &self.focus)
+    }
+    pub fn start_focus_session(
+        &mut self,
+        topic_id: &str,
+        request_id: &str,
+    ) -> Result<crate::focus::FocusSummary> {
+        self.require_topic(topic_id)?;
+        crate::focus::start(&mut self.conn, &mut self.focus, topic_id, request_id)
+    }
+    pub fn tick_focus_session(
+        &mut self,
+        session_id: &str,
+        sequence: i64,
+        end: bool,
+    ) -> Result<crate::focus::FocusSummary> {
+        crate::focus::tick(&mut self.conn, &mut self.focus, session_id, sequence, end)
     }
     pub fn dashboard(&self) -> Result<Dashboard> {
         let topics = self.conn.prepare("SELECT topic_id,status,mastery,best_score,last_studied_at FROM topic_progress ORDER BY rowid")?.query_map([], |r| Ok(TopicProgress { topic_id:r.get(0)?,status:r.get(1)?,mastery:r.get(2)?,best_score:r.get(3)?,last_studied_at:r.get(4)? }))?.collect::<std::result::Result<Vec<_>,_>>()?;
@@ -834,7 +875,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {
@@ -1186,6 +1227,25 @@ mod tests {
             revision
         );
         assert_eq!(store.dashboard().unwrap().total_xp, 20);
+    }
+    #[test]
+    fn focus_sessions_validate_topics_and_never_award_progress() {
+        let mut store = memory();
+        assert!(store.start_focus_session("unknown", "focus-0001").is_err());
+        let started = store
+            .start_focus_session("cache-locality", "focus-0001")
+            .unwrap();
+        assert!(started.active_session.is_some());
+        store.tick_focus_session("focus-0001", 1, false).unwrap();
+        store.tick_focus_session("focus-0001", 2, true).unwrap();
+        let dashboard = store.dashboard().unwrap();
+        assert_eq!(dashboard.total_xp, 0);
+        assert_eq!(dashboard.streak_days, 0);
+        assert!(dashboard.achievements.is_empty());
+        assert!(dashboard
+            .topics
+            .iter()
+            .all(|t| t.status == "not_started" && t.mastery == "untested"));
     }
     #[test]
     fn independent_connections_keep_awards_unique() {

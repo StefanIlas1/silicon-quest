@@ -26,6 +26,7 @@ secrets/
 *.sqlite3-*
 *.db
 *.db-*
+*.focus-lock
 local-data/
 app-data/
 personal/
