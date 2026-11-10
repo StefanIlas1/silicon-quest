@@ -27,7 +27,7 @@ Tauri invoke arguments use camelCase. Errors are `{code,message}` with no raw da
 
 Dashboard fields: `topics`, `totalXp`, `level`, `achievements`, `attempts` (latest 100), `notes`, and `streakDays`. Reading status is `not_started`, `reading`, or `read`. Mastery is independently `untested`, `needs_review`, or `passed`.
 
-Marking a topic read earns 20 XP once. Passing its quiz at 80% or higher earns 100 XP once. XP ledger keys are unique per action/topic. Duplicate attempt IDs with identical answers return the original result; conflicting reuse is rejected. Transactions and an immediate lock on quiz award/replay checks protect against simultaneous app instances. A pass is retained as the best achievement after later review attempts. Level starts at 1 and increments every 250 XP. Streaks count distinct local calendar days of actual learning actions, with yesterday allowed as the most recent day.
+Marking a topic read earns 20 XP once. Passing its quiz at 80% or higher earns 100 XP once. XP ledger keys are unique per action/topic. Duplicate attempt IDs with identical answers return the original result; conflicting reuse is rejected. Transactions and an immediate lock on quiz award/replay checks protect against simultaneous app instances. The latest graded result controls the current check status; lifetime best scores and already-earned rewards remain after later failures. Spaced recall mastery is tracked separately as described below. Level starts at 1 and increments every 250 XP. Streaks count distinct local calendar days of actual learning actions, with yesterday allowed as the most recent day.
 
 Migration 2 adds a document revision to existing PDFs without changing their bytes or user progress. Reader state defaults to page 1 and no bookmarks. Bookmarks are `{id,page,label,createdAt}`, sorted by page. Page and bookmark writes require the current opaque `documentRevision`; stale writes return `stale_document` and ask the user to reopen the book. Pass this revision when loading PDF bytes as well to prevent a document replacement race.
 
@@ -72,3 +72,28 @@ The backend measures elapsed time from its own monotonic clock, never from a cli
 Milliseconds are persisted to preserve fractional seconds; display totals floor to seconds after summing. Daily totals attribute each accepted interval to the checkpoint's UTC date (they do not split an interval at midnight). A normal close/crash can lose time since the last saved heartbeat, typically up to 10 seconds. Restarting never infers offline time. Finish explicitly to record the final interval and mark a session completed.
 
 Focus behavior is covered by deterministic Rust tests, including simulated gaps, sleep/clock changes, subsecond/replay handling, lock ownership/recovery and totals beyond the history limit. Native focus UI has not been smoke-tested because GUI automation was unavailable during this increment.
+
+
+## Spaced review (migration 4, policy version 1)
+
+`get_review_summary()` returns `{asOf,due,upcoming,masteredCount,totalScheduled,evidenceRequired,intervalDays,policyVersion,events}`. Due/upcoming arrays include every scheduled topic; `events` contains the latest 100 review events, while totals use the full schedule. `submit_quiz` now also returns `reviewUpdate` (the immutable effect of that particular attempt) and the current `reviewSummary`, including when an existing attempt ID is replayed. There is no command to award mastery or schedule a topic without an authoritative saved quiz grade.
+
+A scheduled review is `{topicId,stage,successfulReviews,dueAt,intervalDays,lastAttemptAt,lastQualifiedAt,lapseCount,due}`. Stage is `learning`, `needs_review`, or `mastered`. A review event is `{attemptId,topicId,passed,qualified,reason,createdAt,stageAfter,successfulReviewsAfter,dueAtAfter}`. Reasons are `first_pass`, `scheduled_pass`, `early_practice`, and `failed_check`.
+
+This deliberately simple policy is an application heuristic, not a validated retention model:
+
+- First passing check starts at one qualifying success and is due one day later.
+- A pass at or after that due time becomes the second qualifying success and schedules three days later.
+- The third qualifying pass earns spaced recall mastery and schedules seven days later. The earliest possible mastery is four days after the first pass.
+- Later scheduled passes use 14-day then 30-day intervals, capped at 30 days.
+- Early passing practice is recorded and graded, but cannot promote a topic or move its due date.
+- Any failed check resets the successful-review streak to zero and marks `needs_review`. Its next review is one day later, or an already-sooner future due time. Early repeated failures cannot keep pushing that date away. Passing early after a failure does not erase the scheduled review requirement.
+- All days are exact 24-hour intervals based on backend UTC timestamps. Being overdue makes a topic due; it does not itself rewrite its last assessment or mastery stage.
+
+A pass still requires at least 80% correct. The seed currently contains one authored question for each of eight quiz topics; repeated recall of these limited questions is a small signal, not proof of broad understanding, project correctness, or engineering competence. Reading, focus timer duration, and spaced recall evidence remain separate.
+
+The legacy `topic_progress.mastery` / dashboard `mastery` field describes the latest check result (`untested`, `passed`, or `needs_review`), rather than lifetime or spaced mastery. A later failure is visible even after a previous pass. `reviewSummary.masteredCount` and schedule stage provide the repeated-evidence metric. The historical `first-mastery` achievement ID and earned date are preserved with the clearer display title `First Check Passed`; reaching the spaced criterion adds `Spaced Recall` with no XP. Quiz XP remains 100 once per topic regardless of practice, due reviews, retries, or mastery.
+
+Migration 4 transactionally replays all existing saved quiz attempts in parsed timestamp and row-order tie order, including attempts older than the 100-row UI history. It does not rewrite original attempts, dates, best scores, XP, notes, PDF reader state or focus history. Review event timestamps are normalized to UTC. Malformed legacy timestamps stop/roll back the migration instead of fabricating dates. New attempt insertion, XP, check status, review evidence and schedule changes share a single transaction. Duplicate attempt IDs return their original review effect and never advance a schedule twice.
+
+Deterministic tests cover exact due boundaries, early practice, failure resets and due preservation, interval caps, duplicate attempts, cross-connection replay, invalid migration timestamps, full-history migration with 108 original attempts, preservation/reopen, and forced-failure atomic rollback. Native spaced-review UI is not smoke-tested; no GUI automation was used for this increment.

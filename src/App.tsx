@@ -18,6 +18,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   Map,
+  Repeat2,
   Search,
   Settings2,
   ShieldCheck,
@@ -40,6 +41,14 @@ import {
 import { api, emptyDashboard, native, errorMessage } from "./backend";
 import type { Dashboard, Quiz, QuizResult, Status } from "./backend";
 import { FocusMini, FocusPage, FocusSummary, FocusTopicControl } from "./Focus";
+import {
+  ReviewFeedback,
+  ReviewOverview,
+  ReviewPage,
+  ReviewTopicState,
+  useReview,
+} from "./Review";
+import { nextReadingTopic } from "./recommendation";
 const Reader = lazy(() => import("./Reader"));
 type Page =
   | "dashboard"
@@ -49,6 +58,7 @@ type Page =
   | "achievements"
   | "settings"
   | "focus"
+  | "reviews"
   | "reader";
 type Module = (typeof modules)[number];
 const nav: { id: Page; label: string; icon: LucideIcon }[] = [
@@ -57,6 +67,7 @@ const nav: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: "roadmap", label: "Learning path", icon: Map },
   { id: "projects", label: "Projects", icon: FolderGit2 },
   { id: "focus", label: "Focus log", icon: Clock3 },
+  { id: "reviews", label: "Review queue", icon: Repeat2 },
   { id: "achievements", label: "Achievements", icon: Trophy },
 ];
 const quizModuleIds = new Set(quizQuestions.map((q) => q.moduleId));
@@ -68,6 +79,7 @@ const trackClass = (track: string) =>
       ? "green"
       : "cyan";
 export default function App() {
+  const reviews = useReview();
   const [page, setPage] = useState<Page>("dashboard");
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard);
   const [connected, setConnected] = useState(false);
@@ -80,6 +92,9 @@ export default function App() {
   const [track, setTrack] = useState("all");
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
+  const [submittedAnswers, setSubmittedAnswers] = useState<number[] | null>(
+    null,
+  );
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
@@ -87,15 +102,18 @@ export default function App() {
   const book = books.find((b) => b.id === bookId) ?? books[0];
   const topic = modules.find((m) => m.id === topicId) ?? modules[0];
   const currentProgress = dashboard.topics.find((p) => p.topicId === topicId);
-  const done = dashboard.topics.filter((p) => p.mastery === "passed").length;
+  const done = reviews.summary?.masteredCount;
   const reading = dashboard.topics.filter(
     (p) => p.status === "reading" || p.status === "read",
   ).length;
-  const nextTopic =
-    modules.find(
-      (m) =>
-        dashboard.topics.find((p) => p.topicId === m.id)?.status !== "read",
-    ) ?? modules[0];
+  const recommendedTopic = nextReadingTopic(modules, phases, dashboard.topics);
+  const nextTopic = recommendedTopic ?? modules[0];
+  const recommendedPhase = recommendedTopic
+    ? phases.find((p) => p.id === recommendedTopic.phaseId)
+    : undefined;
+  const recommendedPhaseNumber = recommendedPhase
+    ? String(phases.indexOf(recommendedPhase) + 1).padStart(2, "0")
+    : "";
   useEffect(() => {
     if (native)
       api
@@ -174,6 +192,7 @@ export default function App() {
       setQuiz(q);
       setQuizResult(null);
       setAnswers(q.questions.map(() => -1));
+      setSubmittedAnswers(null);
       setAttemptId(crypto.randomUUID());
     } catch (e) {
       setError(errorMessage(e));
@@ -183,11 +202,16 @@ export default function App() {
   }
   async function submitQuiz() {
     if (!quiz || answers.some((a) => a < 0)) return;
+    const payload = submittedAnswers ?? answers.slice();
+    setSubmittedAnswers(payload);
+    setError("");
     setBusy(true);
     try {
-      const result = await api.submit(quiz.topicId, answers, attemptId);
+      const result = await api.submit(quiz.topicId, payload, attemptId);
       setQuizResult(result);
       setDashboard(result.dashboard);
+      if (result.reviewSummary) reviews.accept(result.reviewSummary);
+      else await reviews.refresh();
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -219,15 +243,35 @@ export default function App() {
               <n.icon size={18} />
               {n.label}
               {n.id === "library" && <small>{books.length}</small>}
+              {n.id === "reviews" && reviews.summary && (
+                <small>{reviews.summary.due.length}</small>
+              )}
             </button>
           ))}
         </nav>
         <div className="sidebar-divider" />
-        <div className="workspace-label">CURRENT CHAPTER</div>
-        <button className="current-phase" onClick={() => setPage("roadmap")}>
-          <span className="phase-symbol">01</span>
+        <div className="workspace-label">
+          {recommendedTopic ? "NEXT RECOMMENDED" : "READING LOG"}
+        </div>
+        <button
+          className="current-phase"
+          onClick={() => {
+            if (recommendedTopic) {
+              setTrack("all");
+              setPage("roadmap");
+            } else setPage("reviews");
+          }}
+        >
+          <span className="phase-symbol">
+            {recommendedPhaseNumber || <Check size={14} />}
+          </span>
           <span>
-            Build your foundations<small>C++ · Systems · Digital logic</small>
+            {recommendedPhase?.title ?? "Return to recall"}
+            <small>
+              {recommendedPhase
+                ? `Months ${recommendedPhase.months}`
+                : "All reading topics marked read"}
+            </small>
           </span>
           <ChevronRight size={15} />
         </button>
@@ -316,7 +360,14 @@ export default function App() {
                 </div>
                 <div className="chapter-pill">
                   <span className="pulse-dot" />
-                  PHASE 01 <span>/ 07</span>
+                  {recommendedPhase ? (
+                    <>
+                      PHASE {recommendedPhaseNumber}
+                      <span>/ {String(phases.length).padStart(2, "0")}</span>
+                    </>
+                  ) : (
+                    "ALL TOPICS MARKED READ"
+                  )}
                 </div>
               </div>
               <div className="stats-grid">
@@ -330,10 +381,10 @@ export default function App() {
                 />
                 <Stat
                   icon={Target}
-                  label="TOPICS MASTERED"
-                  value={String(done)}
+                  label="SPACED RECALL"
+                  value={done === undefined ? "—" : String(done)}
                   suffix={`/ ${quizModuleIds.size}`}
-                  detail="Passed checks, not just pages read"
+                  detail="Repeated, scheduled recall evidence"
                   color="purple"
                 />
                 <Stat
@@ -350,21 +401,50 @@ export default function App() {
                   <div className="continue-copy">
                     <div className="eyebrow cyan-text">
                       <BookOpen size={14} />{" "}
-                      {reading ? "CONTINUE YOUR JOURNEY" : "YOUR FIRST STEP"}
+                      {!recommendedTopic
+                        ? "KEEP THE RECALL"
+                        : reading
+                          ? "CONTINUE YOUR JOURNEY"
+                          : "YOUR FIRST STEP"}
                     </div>
-                    <h2>{nextTopic.title}</h2>
-                    <p>{nextTopic.summary}</p>
+                    <h2>
+                      {recommendedTopic
+                        ? nextTopic.title
+                        : "Your reading log is complete."}
+                    </h2>
+                    <p>
+                      {recommendedTopic
+                        ? nextTopic.summary
+                        : "Every reading topic has been marked read. Return to scheduled recall and practical evidence; reading alone does not complete the roadmap."}
+                    </p>
                     <div className="meta-row">
-                      <span>PHASE 01</span>
-                      <i /> <span>FOUNDATIONS</span>
+                      <span>
+                        {recommendedPhase
+                          ? `PHASE ${recommendedPhaseNumber}`
+                          : "RETRIEVE"}
+                      </span>
+                      <i />{" "}
+                      <span>
+                        {recommendedTopic
+                          ? nextTopic.track.toUpperCase()
+                          : "EXPERIMENT"}
+                      </span>
                       <i />
                       <span>GUIDED STUDY</span>
                     </div>
                     <button
                       className="primary-button"
-                      onClick={() => openTopic(nextTopic)}
+                      onClick={() =>
+                        recommendedTopic
+                          ? openTopic(nextTopic)
+                          : setPage("reviews")
+                      }
                     >
-                      {reading ? "Continue learning" : "Start learning"}
+                      {!recommendedTopic
+                        ? "Open review queue"
+                        : reading
+                          ? "Continue learning"
+                          : "Start learning"}
                       <ArrowRight size={17} />
                     </button>
                   </div>
@@ -376,7 +456,11 @@ export default function App() {
                     <div className="circuit-line c3" />
                     <div className="chip-core">
                       <Cpu size={66} strokeWidth={1} />
-                      <span>FOUNDATION</span>
+                      <span>
+                        {recommendedPhase
+                          ? `PHASE ${recommendedPhaseNumber}`
+                          : "RECALL"}
+                      </span>
                     </div>
                     <span className="chip-coordinate">0x0000 → ∞</span>
                   </div>
@@ -406,6 +490,7 @@ export default function App() {
                 </section>
               </div>
               <FocusSummary onOpen={() => setPage("focus")} />
+              <ReviewOverview onOpen={() => setPage("reviews")} />
               <div className="section-heading">
                 <div>
                   <h2>Your learning tracks</h2>
@@ -808,6 +893,19 @@ export default function App() {
             </>
           )}
           {page === "focus" && <FocusPage />}
+          {page === "reviews" && (
+            <ReviewPage
+              busy={busy}
+              onQuiz={(id) => {
+                const m = modules.find((m) => m.id === id);
+                if (m) void startQuiz(m);
+              }}
+              onStudy={(id) => {
+                const m = modules.find((m) => m.id === id);
+                if (m) openTopic(m);
+              }}
+            />
+          )}
           {page === "settings" && (
             <>
               <PageHeading
@@ -999,8 +1097,9 @@ export default function App() {
                         ))}
                       </div>
                       <p className="micro-copy">
-                        Reading is self-reported. Mastery comes from a passed
-                        knowledge check.
+                        Reading is self-reported. Check status comes from the
+                        latest graded attempt. Spaced recall is tracked
+                        separately.
                       </p>
                     </div>
                     <div className="notes-area">
@@ -1032,6 +1131,7 @@ export default function App() {
                       </p>
                     </div>
                     <div className="knowledge-check">
+                      <ReviewTopicState topicId={topicId} />
                       <div>
                         <Target size={19} />
                         <h3>Check your understanding</h3>
@@ -1040,7 +1140,7 @@ export default function App() {
                         {!hasQuiz
                           ? "A curated knowledge check is not available for this topic yet. You can still study, write notes, and record reading."
                           : currentProgress?.mastery === "passed"
-                            ? "Passed. Review any time; repeat passes do not farm XP."
+                            ? "Latest check passed. Revisit when due to build spaced recall evidence; early practice does not advance it."
                             : "A short, curated check. Earn 100 XP on your first pass. Reading earns 20 XP once."}
                       </p>
                       <button
@@ -1137,7 +1237,9 @@ export default function App() {
                         type="radio"
                         name={q.id}
                         checked={answers[i] === j}
-                        disabled={!!quizResult || busy}
+                        disabled={
+                          !!quizResult || busy || submittedAnswers !== null
+                        }
                         onChange={() =>
                           setAnswers(answers.map((v, k) => (k === i ? j : v)))
                         }
@@ -1157,35 +1259,54 @@ export default function App() {
               ))
             )}
             {quizResult ? (
-              <div className="quiz-result">
-                <div>
-                  <strong>
-                    {quizResult.attempt.score}/{quizResult.attempt.total} ·{" "}
-                    {quizResult.attempt.passed ? "Passed" : "Keep exploring"}
-                  </strong>
-                  <p>
-                    {quizResult.attempt.xpAwarded > 0
-                      ? `+${quizResult.attempt.xpAwarded} XP earned. Saved to your local progress.`
-                      : "Attempt saved. Review the explanations and return when you are ready."}
-                  </p>
+              <>
+                {quizResult.reviewUpdate && (
+                  <ReviewFeedback event={quizResult.reviewUpdate} />
+                )}
+                <div className="quiz-result">
+                  <div>
+                    <strong>
+                      {quizResult.attempt.score}/{quizResult.attempt.total} ·{" "}
+                      {quizResult.attempt.passed ? "Passed" : "Keep exploring"}
+                    </strong>
+                    <p>
+                      {quizResult.attempt.xpAwarded > 0
+                        ? `+${quizResult.attempt.xpAwarded} XP earned. Saved to your local progress.`
+                        : "Attempt saved. Review the explanations and return when you are ready."}
+                    </p>
+                  </div>
+                  <button
+                    className="primary-button"
+                    onClick={() => setQuiz(null)}
+                  >
+                    Back to learning
+                    <ArrowRight size={16} />
+                  </button>
                 </div>
+              </>
+            ) : (
+              <>
+                {submittedAnswers && !busy && (
+                  <p className="micro-copy">
+                    These answers are locked for this attempt. Retry submits the
+                    same answers and attempt, without duplicating its result.
+                  </p>
+                )}
                 <button
-                  className="primary-button"
-                  onClick={() => setQuiz(null)}
+                  className="primary-button quiz-submit"
+                  disabled={
+                    busy || answers.some((a) => a < 0) || !answers.length
+                  }
+                  onClick={submitQuiz}
                 >
-                  Back to learning
+                  {busy
+                    ? "Checking…"
+                    : submittedAnswers
+                      ? "Retry submitted answers"
+                      : "Submit answers"}
                   <ArrowRight size={16} />
                 </button>
-              </div>
-            ) : (
-              <button
-                className="primary-button quiz-submit"
-                disabled={busy || answers.some((a) => a < 0) || !answers.length}
-                onClick={submitQuiz}
-              >
-                {busy ? "Checking…" : "Submit answers"}
-                <ArrowRight size={16} />
-              </button>
+              </>
             )}
           </section>
         </div>

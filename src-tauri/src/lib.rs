@@ -1,4 +1,5 @@
 pub mod focus;
+pub mod review;
 pub mod store;
 
 #[cfg(feature = "desktop")]
@@ -143,6 +144,10 @@ mod desktop {
     ) -> Result<crate::focus::FocusSummary> {
         with_store(state, |s| s.tick_focus_session(&session_id, sequence, true))
     }
+    #[tauri::command]
+    fn get_review_summary(state: State<'_, AppState>) -> Result<crate::review::ReviewSummary> {
+        with_store(state, |s| s.get_review_summary())
+    }
     pub fn run() {
         tauri::Builder::default()
             .setup(|app| {
@@ -185,7 +190,8 @@ mod desktop {
                 get_focus_summary,
                 start_focus_session,
                 tick_focus_session,
-                end_focus_session
+                end_focus_session,
+                get_review_summary
             ])
             .run(tauri::generate_context!())
             .expect("Silicon Quest could not initialize its local desktop window");

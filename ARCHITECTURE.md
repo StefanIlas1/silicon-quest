@@ -1,6 +1,6 @@
 # Architecture
 
-Silicon Quest uses React/TypeScript for its interface and Tauri/Rust for the desktop boundary. SQLite stores progress, notes, quiz attempts, XP events, achievements, imported PDF data, page positions and bookmarks locally. The Tauri application creates its database under the platform application-data directory, outside the source tree.
+Silicon Quest uses React/TypeScript for its interface and Tauri/Rust for the desktop boundary. SQLite stores progress, notes, quiz attempts, XP events, achievements, imported PDF data, page positions, bookmarks, focus checkpoints and review schedules/events locally. The Tauri application creates its database under the platform application-data directory, outside the source tree.
 
 ## Curriculum boundary
 
@@ -15,11 +15,15 @@ The source roadmap discusses unverified prices, board support and tool versions.
 
 ## Local persistence and grading
 
-Tauri commands expose dashboard reads, topic-status changes, note updates, quiz retrieval/submission, local PDF import/read and revision-bound reader state. SQLite migrations version the schema. The backend validates stable topic/book IDs and quiz answers, grades against the bundled key, and persists results. Quiz mastery and self-reported topic status remain distinct fields.
+Tauri commands expose dashboard reads, topic-status changes, note updates, quiz retrieval/submission, local PDF import/read, revision-bound reader state, focus tracking and review summaries. SQLite migrations version the schema. The backend validates stable topic/book IDs and quiz answers, grades against the bundled key, and persists results. Self-reported reading, latest-check results and repeated-review mastery remain separate. The legacy `topic_progress.mastery` field describes the latest check result; review schedule stage and `masteredCount` describe repeated qualifying recall.
 
 XP is an event ledger rather than a mutable client total. Quiz attempt identifiers support safe retries, and unique award keys prevent repeat passing attempts from farming the same reward. Changes that span attempts, mastery and XP use a transaction. UI progress always needs to be reloaded from the authoritative store after mutation.
 
 PDF import records the local document against a known book. Schema migration 2 preserves existing documents/progress and adds opaque document revisions, page positions and labeled page bookmarks. Writes validate the current revision in the same transaction as the mutation, rejecting stale windows after replacement. Reimporting current identical bytes preserves state; different bytes create a fresh revision. Older revision metadata stays in SQLite but has no restore interface. PDF.js checks actual page bounds; the backend also enforces integer bounds. Reader actions award no XP and claim no mastery. Text extraction or automatic chapter mapping must not silently replace the provisional curriculum; future mappings need explicit evidence and user review. There is no cloud account or remote sync architecture in this version.
+
+Migration 3 adds [focus sessions](docs/FOCUS.md): backend monotonic checkpoints, an exclusive process ownership lock and recovery at the last saved checkpoint without offline credit. Timer actions do not change XP, latest-check results or review evidence.
+
+Migration 4 adds [scheduled review](docs/REVIEW.md), replaying all existing grades in chronological order while preserving raw history and earned rewards. New scheduling events, grades, current results and first-pass XP share a transaction. Three qualifying successes are required for repeated-review mastery; early passes remain practice. The interface prevents stale queue requests from replacing a newer quiz-returned summary.
 
 ## Publication boundary
 

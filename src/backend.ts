@@ -1,4 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import type { ReviewEvent, ReviewSummary } from "./Review";
 export type Status = "not_started" | "reading" | "read";
 export type TopicProgress = {
   topicId: string;
@@ -30,6 +31,8 @@ export type Quiz = {
   questions: { id: string; prompt: string; options: string[] }[];
 };
 export type QuizResult = {
+  reviewUpdate?: ReviewEvent;
+  reviewSummary?: ReviewSummary;
   attempt: Attempt;
   feedback: {
     questionId: string;

@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { emptyDashboard } from "./backend";
 import App from "./App";
+import { modules, phases } from "../curriculum/data";
 const mock = vi.hoisted(() => ({
   native: true,
   dashboard: vi.fn(),
@@ -31,6 +32,52 @@ beforeEach(() => {
   mock.dashboard.mockResolvedValue({ ...emptyDashboard });
 });
 describe("learning workspace", () => {
+  it("uses the recommended topic's actual phase in dashboard and sidebar labels", async () => {
+    mock.dashboard.mockResolvedValue({
+      ...emptyDashboard,
+      topics: modules
+        .filter((m) => m.phaseId === "phase-1")
+        .map((m) => ({
+          topicId: m.id,
+          status: "read",
+          mastery: "untested",
+          bestScore: null,
+          lastStudiedAt: null,
+        })),
+    });
+    render(<App />);
+    await screen.findByText("Local database connected");
+    expect(document.querySelector(".chapter-pill")?.textContent).toContain(
+      "PHASE 02",
+    );
+    expect(document.querySelector(".current-phase")?.textContent).toContain(
+      phases.find((p) => p.id === "phase-2")!.title,
+    );
+    expect(
+      document.querySelector(".continue-card .meta-row")?.textContent,
+    ).toContain("PHASE 02");
+  });
+  it("offers recall after all reading is marked read without claiming the roadmap complete", async () => {
+    mock.dashboard.mockResolvedValue({
+      ...emptyDashboard,
+      topics: modules.map((m) => ({
+        topicId: m.id,
+        status: "read",
+        mastery: "untested",
+        bestScore: null,
+        lastStudiedAt: null,
+      })),
+    });
+    render(<App />);
+    await screen.findByText("Your reading log is complete.");
+    expect(
+      screen.getByText(/reading alone does not complete the roadmap/),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Open review queue" }));
+    expect(
+      screen.getByRole("heading", { name: "Make understanding last." }),
+    ).toBeTruthy();
+  });
   it("preserves separate unsaved drafts while moving between topics and pages", async () => {
     render(<App />);
     await screen.findByText("Local database connected");

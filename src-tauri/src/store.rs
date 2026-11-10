@@ -95,6 +95,8 @@ pub struct QuizResult {
     pub attempt: QuizAttempt,
     pub feedback: Vec<Feedback>,
     pub dashboard: Dashboard,
+    pub review_update: crate::review::ReviewEvent,
+    pub review_summary: crate::review::ReviewSummary,
 }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -157,7 +159,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 3 {
+        if version > 4 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -176,6 +178,13 @@ impl Store {
             let tx = conn.transaction()?;
             tx.execute_batch(include_str!("../migrations/003_focus_sessions.sql"))?;
             tx.pragma_update(None, "user_version", 3)?;
+            tx.commit()?;
+        }
+        if version < 4 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(include_str!("../migrations/004_spaced_review.sql"))?;
+            crate::review::backfill(&tx)?;
+            tx.pragma_update(None, "user_version", 4)?;
             tx.commit()?;
         }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
@@ -203,6 +212,9 @@ impl Store {
             curriculum,
             focus,
         })
+    }
+    pub fn get_review_summary(&self) -> Result<crate::review::ReviewSummary> {
+        crate::review::summary(&self.conn)
     }
     pub fn get_focus_summary(&self) -> Result<crate::focus::FocusSummary> {
         crate::focus::summary(&self.conn, &self.focus)
@@ -387,6 +399,8 @@ impl Store {
                 attempt,
                 feedback: serde_json::from_str(&feedback)?,
                 dashboard: self.dashboard()?,
+                review_update: crate::review::event(&self.conn, attempt_id)?,
+                review_summary: self.get_review_summary()?,
             });
         }
         let questions = self.questions(topic_id)?;
@@ -421,7 +435,6 @@ impl Store {
         let score = feedback.iter().filter(|f| f.correct).count() as i64;
         let passed = score * 100 >= total * 80;
         let percentage = score * 100 / total;
-        let timestamp = now();
         // Serialize the replay check with the award, including across app instances.
         let tx = self
             .conn
@@ -452,18 +465,24 @@ impl Store {
                 attempt,
                 feedback,
                 dashboard: self.dashboard()?,
+                review_update: crate::review::event(&self.conn, attempt_id)?,
+                review_summary: self.get_review_summary()?,
             });
         }
+        // Timestamp accepted attempts under the same write lock, so competing
+        // app instances cannot commit an older sampled time after a newer one.
+        let timestamp = now();
         let xp_awarded = if passed {
             award(&tx, &format!("quiz-pass:{topic_id}"), 100, &timestamp)?
         } else {
             0
         };
         tx.execute("INSERT INTO quiz_attempts(attempt_id,topic_id,answers_json,score,total,passed,xp_awarded,feedback_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![attempt_id,topic_id,answers_json,score,total,passed,xp_awarded,serde_json::to_string(&feedback)?,timestamp])?;
-        tx.execute("UPDATE topic_progress SET mastery=CASE WHEN mastery='passed' OR ?2 THEN 'passed' ELSE 'needs_review' END,best_score=MAX(COALESCE(best_score,0),?3),last_studied_at=?4 WHERE topic_id=?1",params![topic_id,passed,percentage,timestamp])?;
+        tx.execute("UPDATE topic_progress SET mastery=CASE WHEN ?2 THEN 'passed' ELSE 'needs_review' END,best_score=MAX(COALESCE(best_score,0),?3),last_studied_at=?4 WHERE topic_id=?1",params![topic_id,passed,percentage,timestamp])?;
         if passed {
-            tx.execute("INSERT OR IGNORE INTO achievements(id,title,earned_at) VALUES('first-mastery','First Mastery',?1)",[&timestamp])?;
+            tx.execute("INSERT OR IGNORE INTO achievements(id,title,earned_at) VALUES('first-mastery','First Check Passed',?1)",[&timestamp])?;
         }
+        let review_update = crate::review::apply_attempt(&tx, attempt_id)?;
         activity(&tx)?;
         tx.commit()?;
         Ok(QuizResult {
@@ -478,6 +497,8 @@ impl Store {
             },
             feedback,
             dashboard: self.dashboard()?,
+            review_update,
+            review_summary: self.get_review_summary()?,
         })
     }
     pub fn import_book_pdf(
@@ -833,7 +854,7 @@ mod tests {
             .iter()
             .find(|t| t.topic_id == "cache-locality")
             .unwrap();
-        assert_eq!(topic.mastery, "passed");
+        assert_eq!(topic.mastery, "needs_review");
         assert_eq!(topic.status, "not_started");
         assert_eq!(topic.best_score, Some(100));
     }
@@ -875,7 +896,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {
@@ -944,6 +965,9 @@ mod tests {
         let state = Store::open(&path).unwrap().dashboard().unwrap();
         assert_eq!(state.attempts.len(), 1);
         assert_eq!(state.total_xp, 100);
+        let review = Store::open(&path).unwrap().get_review_summary().unwrap();
+        assert_eq!(review.events.len(), 1);
+        assert_eq!(review.upcoming[0].successful_reviews, 1);
     }
     const TEST_PDF: &[u8] = b"%PDF-1.7\nlocal reader fixture";
     #[test]
@@ -1246,6 +1270,157 @@ mod tests {
             .topics
             .iter()
             .all(|t| t.status == "not_started" && t.mastery == "untested"));
+    }
+    #[test]
+    fn scheduling_is_atomic_with_the_grade_and_xp_award() {
+        let mut store = memory();
+        let answers = correct_answers(&store, "cache-locality");
+        store.conn.execute_batch("CREATE TRIGGER reject_review BEFORE INSERT ON review_events BEGIN SELECT RAISE(ABORT,'test-only forced failure'); END;").unwrap();
+        assert!(store
+            .submit_quiz("cache-locality", answers, "atomic-review-01")
+            .is_err());
+        let state = store.dashboard().unwrap();
+        assert_eq!(state.total_xp, 0);
+        assert!(state.attempts.is_empty());
+        assert!(state.achievements.is_empty());
+        assert_eq!(
+            state
+                .topics
+                .iter()
+                .find(|t| t.topic_id == "cache-locality")
+                .unwrap()
+                .mastery,
+            "untested"
+        );
+        let review = store.get_review_summary().unwrap();
+        assert_eq!(review.total_scheduled, 0);
+        assert!(review.events.is_empty());
+    }
+    #[test]
+    fn quiz_replays_return_the_original_review_effect_without_promoting_or_farming() {
+        let mut store = memory();
+        let answers = correct_answers(&store, "cache-locality");
+        let first = store
+            .submit_quiz("cache-locality", answers.clone(), "review-first-01")
+            .unwrap();
+        assert!(first.review_update.qualified);
+        assert_eq!(first.review_update.successful_reviews_after, 1);
+        assert_eq!(first.review_summary.mastered_count, 0);
+        let replay = store
+            .submit_quiz("cache-locality", answers.clone(), "review-first-01")
+            .unwrap();
+        assert_eq!(replay.review_update.reason, "first_pass");
+        assert_eq!(replay.review_summary.events.len(), 1);
+        let practice = store
+            .submit_quiz("cache-locality", answers, "review-practice-01")
+            .unwrap();
+        assert!(!practice.review_update.qualified);
+        assert_eq!(practice.review_update.reason, "early_practice");
+        assert_eq!(practice.review_update.successful_reviews_after, 1);
+        assert_eq!(
+            practice.review_update.due_at_after,
+            first.review_update.due_at_after
+        );
+        assert_eq!(practice.dashboard.total_xp, 100);
+        assert_eq!(practice.attempt.xp_awarded, 0);
+        let replay_again = store
+            .submit_quiz(
+                "cache-locality",
+                correct_answers(&store, "cache-locality"),
+                "review-first-01",
+            )
+            .unwrap();
+        assert_eq!(replay_again.review_update.reason, "first_pass");
+        assert_eq!(replay_again.review_summary.events.len(), 2);
+    }
+    #[test]
+    fn migration_four_backfills_all_attempts_and_preserves_version_three_user_data() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("v3.sqlite3");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(include_str!("../migrations/001_initial.sql"))
+                .unwrap();
+            conn.execute_batch(include_str!("../migrations/002_reader_state.sql"))
+                .unwrap();
+            conn.execute_batch(include_str!("../migrations/003_focus_sessions.sql"))
+                .unwrap();
+            conn.pragma_update(None, "user_version", 3).unwrap();
+            conn.execute(
+                "INSERT INTO books(id,title,metadata_json) VALUES('csapp','Old title','{}')",
+                [],
+            )
+            .unwrap();
+            for topic in ["cache-locality", "cuda-memory"] {
+                conn.execute(
+                    "INSERT INTO topics(id,book_id,title,metadata_json) VALUES(?1,'csapp',?1,'{}')",
+                    [topic],
+                )
+                .unwrap();
+                conn.execute("INSERT INTO topic_progress(topic_id,status,mastery,best_score) VALUES(?1,'read','passed',100)",[topic]).unwrap();
+            }
+            for (index, date) in [
+                "2026-10-01T10:00:00Z",
+                "2026-10-02T10:00:00Z",
+                "2026-10-05T10:00:00Z",
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                conn.execute("INSERT INTO quiz_attempts(attempt_id,topic_id,answers_json,score,total,passed,xp_awarded,feedback_json,created_at) VALUES(?1,'cache-locality','[2]',1,1,1,0,'[]',?2)",params![format!("historic-{index}"),date]).unwrap();
+            }
+            for index in 0..105 {
+                conn.execute("INSERT INTO quiz_attempts(attempt_id,topic_id,answers_json,score,total,passed,xp_awarded,feedback_json,created_at) VALUES(?1,'cuda-memory','[1]',1,1,1,0,'[]','2026-11-10T10:00:00Z')",[format!("practice-{index:03}")]).unwrap();
+            }
+            conn.execute("INSERT INTO xp_ledger(event_key,amount,created_at) VALUES('quiz-pass:cache-locality',100,'2026-10-01T10:00:00Z')",[]).unwrap();
+            conn.execute("INSERT INTO achievements(id,title,earned_at) VALUES('first-mastery','First Mastery','2026-10-01T10:00:00Z')",[]).unwrap();
+            conn.execute("INSERT INTO notes(topic_id,body,updated_at) VALUES('cache-locality','Original observations','2026-10-01T10:00:00Z')",[]).unwrap();
+            conn.execute("INSERT INTO book_documents(book_id,file_name,imported_at,bytes,document_revision) VALUES('csapp','original.pdf','2026-10-01T10:00:00Z',?1,'11111111111111111111111111111111')",[TEST_PDF]).unwrap();
+            conn.execute("INSERT INTO reader_positions(book_id,document_revision,page,updated_at) VALUES('csapp','11111111111111111111111111111111',5,'2026-10-01T10:00:00Z')",[]).unwrap();
+            conn.execute("INSERT INTO page_bookmarks(id,book_id,document_revision,page,label,created_at) VALUES('22222222222222222222222222222222','csapp','11111111111111111111111111111111',5,'Keep me','2026-10-01T10:00:00Z')",[]).unwrap();
+            conn.execute("INSERT INTO focus_sessions(id,topic_id,owner_token,status,started_at,updated_at,ended_at,elapsed_ms) VALUES('historic-focus','cache-locality','old-owner','completed','2026-10-01T10:00:00Z','2026-10-01T10:01:00Z','2026-10-01T10:01:00Z',60000)",[]).unwrap();
+        }
+        {
+            let store = Store::open(&path).unwrap();
+            let review = store.get_review_summary().unwrap();
+            assert_eq!(review.total_scheduled, 2);
+            assert_eq!(review.mastered_count, 1);
+            assert_eq!(review.events.len(), 100);
+            assert!(review.events.iter().all(|e| e.topic_id == "cuda-memory"));
+            let count: i64 = store
+                .conn
+                .query_row("SELECT count(*) FROM quiz_attempts", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(count, 108);
+            let events: i64 = store
+                .conn
+                .query_row("SELECT count(*) FROM review_events", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(events, 108);
+            let state = store.dashboard().unwrap();
+            assert_eq!(state.total_xp, 100);
+            assert_eq!(state.notes[0].body, "Original observations");
+            let achievement = state
+                .achievements
+                .iter()
+                .find(|a| a.id == "first-mastery")
+                .unwrap();
+            assert_eq!(achievement.title, "First Check Passed");
+            assert_eq!(achievement.earned_at, "2026-10-01T10:00:00Z");
+            assert_eq!(store.get_book_pdf("csapp").unwrap(), TEST_PDF);
+            let reader = store.get_book_reader_state("csapp").unwrap();
+            assert_eq!(reader.page, 5);
+            assert_eq!(reader.bookmarks[0].label, "Keep me");
+            assert_eq!(store.get_focus_summary().unwrap().total_seconds, 60);
+        }
+        let reopened = Store::open(&path).unwrap();
+        assert_eq!(reopened.get_review_summary().unwrap().mastered_count, 1);
+        let events: i64 = reopened
+            .conn
+            .query_row("SELECT count(*) FROM review_events", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(events, 108);
+        assert_eq!(reopened.dashboard().unwrap().total_xp, 100);
     }
     #[test]
     fn independent_connections_keep_awards_unique() {

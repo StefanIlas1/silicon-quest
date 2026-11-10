@@ -1,8 +1,8 @@
 # Silicon Quest
 
-A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Read your own PDFs with saved page positions and labeled bookmarks, keep topic notes, take curated knowledge checks, and log confirmed study time. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
+A local-first learning companion for a 15–18 month performance engineering roadmap across C++, CPUs, CUDA GPUs and FPGA systems. Read your own PDFs with saved page positions and labeled bookmarks, keep topic notes, take curated knowledge checks, revisit a spaced-review queue, and log confirmed study time. The curriculum follows [ROADMAP.md](ROADMAP.md): nine selective-study books, seven phases and four portfolio projects, including one integrated PYNQ-Z2 capstone.
 
-The interface groups roadmap topics into **provisional modules**, not verified textbook chapters. Progress tracking and quiz mastery are separate: marking reading complete is not evidence of implementation, and a quiz pass is not a completed portfolio milestone. Course prices and hardware/tool compatibility are historical planning assumptions to verify with official sources before purchase.
+The interface groups roadmap topics into **provisional modules**, not verified textbook chapters. Reading status, the latest graded check and repeated-review evidence are separate. Marking reading complete is not evidence of implementation, and a quiz pass is not a completed portfolio milestone. Reading suggestions follow roadmap phase order, including early parallel RTL study. A finished reading log does not complete project milestones. Course prices and hardware/tool compatibility are historical planning assumptions to verify with official sources before purchase.
 
 ## Run locally
 
@@ -33,6 +33,10 @@ See [TESTING.md](TESTING.md) for the verification scope and [ARCHITECTURE.md](AR
 ## Focus sessions
 
 Start a focus session from a study topic or the Focus log. Finish it when you are done. Saved totals use backend checkpoints; the live clock includes a short unsaved estimate. Closed-app time, long heartbeat gaps and clock discontinuities do not become study credit. Timer actions award no XP or mastery. See [focus tracking](docs/FOCUS.md) for recovery, concurrent-instance behavior and verification boundaries.
+
+## Review queue
+
+A first graded check starts a persisted review schedule for its curated topic. Early passes are practice; subsequent qualifying passes must wait until the review is due. Three qualifying successes demonstrate spaced recall, while a failure resets the current evidence streak. Historical attempts, best scores and earned XP stay intact. See [scheduled review](docs/REVIEW.md) for intervals, migration and latest-check versus repeated-mastery semantics.
 
 ## Curriculum and privacy
 
