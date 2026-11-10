@@ -156,3 +156,10 @@ screenshots were added to the repository.
 Native UI automation was unavailable for this follow-up. No new native button
 interaction, text selection, save or visual alignment check is claimed. Earlier
 native smoke entries remain records of their respective builds and profiles.
+
+A separate QA bundle launched against an isolated synthetic schema-10 profile.
+Read-only SQLite inspection confirmed automatic upgrade to schema 11, preservation
+of the legacy note's body and version, empty highlight metadata for that note and
+valid integrity. This verifies native startup migration, not button interaction
+or saving through the UI. The normal application bundle was rebuilt afterward
+with its original name and application identifier.
