@@ -1,6 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { MessageSquare, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { errorMessage, native } from "./backend";
 import PdfPageNotes from "./PdfPageNotes";
 import "./PdfAnnotations.css";
@@ -82,6 +89,9 @@ export default function PdfAnnotations({
   const [retry, setRetry] = useState(0);
   const [removeId, setRemoveId] = useState<string | null>(null);
   const availabilityId = useId();
+  const contentId = useId();
+  const toggleButton = useRef<HTMLButtonElement>(null);
+  const draftForm = useRef<HTMLFormElement>(null);
   const unavailableReason = !native
     ? "Open the desktop app to save page notes and highlights locally."
     : !ready
@@ -183,6 +193,18 @@ export default function PdfAnnotations({
   async function save() {
     if (!draft || busy || disabled || !ready) return;
     const submitted = draft;
+    // WebKit blurs a focused button/textarea when saving disables it. Remember
+    // editor ownership before that blur, but stop owning focus if the reader
+    // deliberately focuses or clicks elsewhere while the write is pending.
+    const editorHadFocus = draftForm.current?.contains(document.activeElement);
+    let movedOutsideEditor = false;
+    function trackFocusMovement(event: Event) {
+      if (event.target instanceof Node) {
+        movedOutsideEditor = !draftForm.current?.contains(event.target);
+      }
+    }
+    document.addEventListener("focusin", trackFocusMovement, true);
+    document.addEventListener("pointerdown", trackFocusMovement, true);
     setBusy(true);
     setError("");
     setNotice("");
@@ -202,6 +224,20 @@ export default function PdfAnnotations({
         setAnnotations(result);
         setDraftState(null);
         setNotice("Annotation saved locally.");
+        setOpen(false);
+        // Saving returns to reading. Keep keyboard focus reachable when its
+        // editor closes, without interrupting a reader who moved elsewhere.
+        const activeElement = document.activeElement;
+        const automaticallyBlurred =
+          activeElement === document.body ||
+          activeElement === document.documentElement;
+        if (
+          !movedOutsideEditor &&
+          (draftForm.current?.contains(activeElement) ||
+            (editorHadFocus && automaticallyBlurred))
+        ) {
+          toggleButton.current?.focus({ preventScroll: true });
+        }
       }
     } catch (e) {
       if (live.current && currentScope.current === scope) {
@@ -210,6 +246,8 @@ export default function PdfAnnotations({
         onError?.(message);
       }
     } finally {
+      document.removeEventListener("focusin", trackFocusMovement, true);
+      document.removeEventListener("pointerdown", trackFocusMovement, true);
       if (live.current && currentScope.current === scope) setBusy(false);
     }
   }
@@ -244,13 +282,26 @@ export default function PdfAnnotations({
     <section className="pdf-annotations" aria-label="PDF annotations">
       <div className="annotation-heading">
         <button
+          ref={toggleButton}
           className="annotation-toggle"
           aria-expanded={open}
+          aria-controls={contentId}
+          title={open ? "Hide annotations" : "Show annotations"}
           onClick={() => setOpen(!open)}
         >
-          <MessageSquare size={15} /> Annotations{" "}
+          <ChevronDown
+            size={16}
+            className="annotation-chevron"
+            aria-hidden="true"
+          />
+          <MessageSquare size={15} aria-hidden="true" /> Annotations{" "}
           <span>{annotations.length}</span>
         </button>
+        {notice && (
+          <span className="annotation-notice" role="status">
+            {notice}
+          </span>
+        )}
         <button
           className="secondary-button"
           disabled={!native || !ready || busy || disabled || draft !== null}
@@ -305,142 +356,144 @@ export default function PdfAnnotations({
           )}
         </div>
       )}
-      {open && (
-        <div className="annotation-content">
-          <small>
-            Notes are linked to this PDF's page numbers and saved privately
-            alongside it. Highlights use selectable PDF text; scanned image
-            pages may have no text to select. Notes and highlights do not alter
-            the PDF.
-          </small>
-          {notice && <p role="status">{notice}</p>}
-          {draft && (
-            <form
-              className="annotation-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void save();
-              }}
-            >
-              <label htmlFor={`annotation-${draft.id}`}>
-                {draft.expectedVersion ? "Edit note" : "New note"} · PDF page{" "}
-                {draft.page}
-              </label>
-              {draft.quote && <blockquote>{draft.quote}</blockquote>}
-              <textarea
-                id={`annotation-${draft.id}`}
-                aria-label="Page note"
-                rows={4}
-                value={draft.body}
-                disabled={busy}
-                onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-                placeholder="What do you want to remember or test?"
-              />
-              <small>
-                Draft kept during this app session. Save before quitting.
-                Maximum 20 KB.
-              </small>
-              <div>
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={
-                    busy ||
-                    disabled ||
-                    !ready ||
-                    !native ||
-                    (!draft.body.trim() && !draft.quote) ||
-                    new TextEncoder().encode(draft.body).length > 20000
-                  }
-                >
-                  {busy
-                    ? "Saving…"
-                    : draft.quote
-                      ? "Save highlight"
-                      : "Save page note"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => setDraft(null)}
-                >
-                  <X size={13} /> Discard draft
-                </button>
-              </div>
-            </form>
-          )}
-          {ready && annotations.length === 0 && !draft && (
-            <p className="annotations-empty">
-              No page notes yet. Add one on the page you are reading.
-            </p>
-          )}
-          <div className="annotation-list">
-            {annotations.map((annotation) => (
-              <article
-                className={
-                  annotation.page === page
-                    ? "annotation-row current"
-                    : "annotation-row"
-                }
-                key={annotation.id}
+      <div id={contentId} hidden={!open}>
+        {open && (
+          <div className="annotation-content">
+            <small>
+              Notes are linked to this PDF's page numbers and saved privately
+              alongside it. Highlights use selectable PDF text; scanned image
+              pages may have no text to select. Notes and highlights do not
+              alter the PDF.
+            </small>
+            {draft && (
+              <form
+                ref={draftForm}
+                className="annotation-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void save();
+                }}
               >
-                <div className="annotation-row-heading">
+                <label htmlFor={`annotation-${draft.id}`}>
+                  {draft.expectedVersion ? "Edit note" : "New note"} · PDF page{" "}
+                  {draft.page}
+                </label>
+                {draft.quote && <blockquote>{draft.quote}</blockquote>}
+                <textarea
+                  id={`annotation-${draft.id}`}
+                  aria-label="Page note"
+                  rows={4}
+                  value={draft.body}
+                  disabled={busy}
+                  onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                  placeholder="What do you want to remember or test?"
+                />
+                <small>
+                  Draft kept during this app session. Save before quitting.
+                  Maximum 20 KB.
+                </small>
+                <div>
                   <button
-                    className="annotation-jump"
-                    disabled={disabled || busy || annotation.page > pageCount}
-                    onClick={() => onNavigate(annotation.page)}
+                    className="primary-button"
+                    type="submit"
+                    disabled={
+                      busy ||
+                      disabled ||
+                      !ready ||
+                      !native ||
+                      (!draft.body.trim() && !draft.quote) ||
+                      new TextEncoder().encode(draft.body).length > 20000
+                    }
                   >
-                    PDF page {annotation.page}
-                    {annotation.page > pageCount ? " · unavailable" : ""}
+                    {busy
+                      ? "Saving…"
+                      : draft.quote
+                        ? "Save highlight"
+                        : "Save page note"}
                   </button>
-                  <div>
-                    <button
-                      className="icon-button"
-                      aria-label={`Edit note on page ${annotation.page}`}
-                      disabled={disabled || busy || draft !== null}
-                      onClick={() => edit(annotation)}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      className="icon-button"
-                      aria-label={`Remove note on page ${annotation.page}`}
-                      disabled={disabled || busy || draft !== null}
-                      onClick={() => setRemoveId(annotation.id)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={busy}
+                    onClick={() => setDraft(null)}
+                  >
+                    <X size={13} /> Discard draft
+                  </button>
                 </div>
-                {annotation.quote && (
-                  <blockquote>{annotation.quote}</blockquote>
-                )}
-                {annotation.body && <p>{annotation.body}</p>}
-                {removeId === annotation.id && (
-                  <div className="annotation-remove">
-                    <span>Remove this note?</span>
+              </form>
+            )}
+            {ready && annotations.length === 0 && !draft && (
+              <p className="annotations-empty">
+                No page notes yet. Add one on the page you are reading.
+              </p>
+            )}
+            <div className="annotation-list">
+              {annotations.map((annotation) => (
+                <article
+                  className={
+                    annotation.page === page
+                      ? "annotation-row current"
+                      : "annotation-row"
+                  }
+                  key={annotation.id}
+                >
+                  <div className="annotation-row-heading">
                     <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => void remove(annotation)}
+                      className="annotation-jump"
+                      disabled={disabled || busy || annotation.page > pageCount}
+                      onClick={() => onNavigate(annotation.page)}
                     >
-                      Remove note
+                      PDF page {annotation.page}
+                      {annotation.page > pageCount ? " · unavailable" : ""}
                     </button>
-                    <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => setRemoveId(null)}
-                    >
-                      Keep note
-                    </button>
+                    <div>
+                      <button
+                        className="icon-button"
+                        aria-label={`Edit note on page ${annotation.page}`}
+                        disabled={disabled || busy || draft !== null}
+                        onClick={() => edit(annotation)}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        aria-label={`Remove note on page ${annotation.page}`}
+                        disabled={disabled || busy || draft !== null}
+                        onClick={() => setRemoveId(annotation.id)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                )}
-              </article>
-            ))}
+                  {annotation.quote && (
+                    <blockquote>{annotation.quote}</blockquote>
+                  )}
+                  {annotation.body && <p>{annotation.body}</p>}
+                  {removeId === annotation.id && (
+                    <div className="annotation-remove">
+                      <span>Remove this note?</span>
+                      <button
+                        className="secondary-button"
+                        disabled={busy}
+                        onClick={() => void remove(annotation)}
+                      >
+                        Remove note
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={busy}
+                        onClick={() => setRemoveId(null)}
+                      >
+                        Keep note
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </section>
   );
 }

@@ -76,6 +76,8 @@ Desktop page positions, bookmarks and annotations are stored against the exact i
 
 Saved notes also have numbered markers beside their PDF page. Select a marker to read its note in the margin; notes attached to highlights appear beside the highlighted passage. Close the note with its close button or **Esc**, and use **Annotations** to edit or remove it. Highlights retain the original PDF text color beneath translucent yellow. At high zoom or in a narrow reader, scroll horizontally to reach the page margin.
 
+The arrow beside **Annotations** opens or hides the saved list. It starts collapsed and returns to reading after a successful save. Hiding the editor keeps its draft for this app session; **Continue draft** reopens it. Save confirmations and errors stay visible when the list is closed.
+
 Choose **Full screen** to expand the reader, then use **Exit full screen** or **Esc** to return. The desktop app uses native window fullscreen; browser preview uses browser fullscreen when available, with a viewport fallback. The same reader stays mounted, retaining its scroll position and unsaved annotation draft. Saved highlight coordinates scale with their PDF page and remain clipped within it.
 
 Reimporting the current PDF preserves its state; replacing it with different bytes starts fresh reader state and hides the old revision's annotations. Unsaved annotation drafts survive navigation for the app session; save before quitting or restoring a backup. PDF page numbers may differ from printed page numbers. Browser preview keeps PDFs and bookmarks in memory for the current session only and requires the desktop app to save annotations.

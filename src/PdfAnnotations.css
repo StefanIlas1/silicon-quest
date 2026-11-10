@@ -20,6 +20,24 @@
   gap: 7px;
   font-size: 12px;
   font-weight: 600;
+  min-height: 32px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.annotation-toggle:hover {
+  background: var(--hover, #ffffff0a);
+}
+.annotation-chevron {
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+}
+.annotation-toggle[aria-expanded="true"] .annotation-chevron {
+  transform: rotate(0);
+}
+.annotation-notice {
+  flex: 1;
+  font-size: 11px;
+  color: var(--muted, #75746b);
 }
 .annotation-toggle span {
   font-size: 10px;

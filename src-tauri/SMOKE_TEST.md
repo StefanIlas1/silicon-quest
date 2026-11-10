@@ -203,3 +203,35 @@ Collision, deletion and crowded-note behavior were checked automatically.
 The final normal debug bundle was rebuilt and its original
 `com.siliconquest.desktop` identifier verified after this QA run. It was not
 launched against learner data for further writes.
+
+## Annotation arrow disclosure - 2026-11-10
+
+Built the separate `Silicon Quest Annotation QA` bundle and reused its isolated
+synthetic profile at `/private/tmp/sq-annotation-fix-qa-20261110`. No learner app
+or data was used for these interactions.
+
+Verified through the native macOS UI:
+
+- The annotations row started collapsed with a visible right-pointing arrow.
+  Selecting it revealed the saved notes and highlight list.
+- Created a synthetic draft, hid its editor, entered fullscreen and selected
+  **Continue draft**. Its text was preserved.
+- Saved a synthetic note. The list automatically collapsed, the saved count
+  increased, and the acknowledgement remained in the compact header. PDF
+  highlights and note markers stayed visible beside the page.
+- The first keyboard smoke found that WebKit blurred the disabled saving
+  button before acknowledgement. After the focus refinement and bundle
+  rebuild, Tab reached **Save page note**, Return saved it, and focus returned
+  to the collapsed annotations arrow.
+- Space on the focused arrow opened the list; Return closed it. The focused
+  arrow remained reachable in fullscreen.
+- Quit the isolated QA app successfully.
+
+Limits: native delayed-write and failure paths were not forced. Automated
+tests cover pending-save collapse, failed-save visibility/draft recovery and
+preserving deliberate reader focus. This smoke used the short synthetic PDF
+and did not repeat native PDF replacement or a full assistive-technology run.
+
+Rebuilt the normal debug `Silicon Quest.app` afterward and verified its original
+`com.siliconquest.desktop` identifier. The learner's running app was not used
+for this verification.
