@@ -101,9 +101,19 @@
   font-size: 12px;
 }
 .annotation-error {
-  padding: 8px 0;
+  padding: 8px 18px;
   color: #e1a395;
   font-size: 12px;
+}
+.annotation-availability {
+  margin: 0;
+  padding: 0 18px 10px;
+  color: var(--muted, #75746b);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.annotation-availability button {
+  margin-left: 8px;
 }
 .annotation-remove {
   padding-top: 8px;

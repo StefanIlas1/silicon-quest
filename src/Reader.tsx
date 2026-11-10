@@ -551,7 +551,7 @@ export default function Reader({
               pageCount={doc.numPages}
               onNavigate={goToPage}
               onError={onError}
-              disabled={busy || !stateReady}
+              disabled={busy}
               selection={selection}
               onSelectionClear={() => {
                 setSelection(null);

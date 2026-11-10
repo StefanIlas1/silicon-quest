@@ -232,11 +232,16 @@ describe("private PDF annotations", () => {
     expect(rectangle.style.left).toBe("10%");
     expect(rectangle.style.width).toBe("30%");
   });
-  it("disables writes in browser preview and after annotation loading fails", async () => {
+  it("explains disabled writes and allows load recovery with annotations collapsed", async () => {
     mock.invoke.mockRejectedValue({ message: "Saved notes unavailable" });
     render(<PdfAnnotations {...props} />);
-    await open();
     await screen.findByRole("alert");
+    expect(screen.getByText("Saved notes unavailable")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: /Annotations/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
     expect(
       (
         screen.getByRole("button", {
@@ -244,10 +249,21 @@ describe("private PDF annotations", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+    mock.invoke.mockResolvedValue([]);
+    fireEvent.click(screen.getByRole("button", { name: "Reload saved notes" }));
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Note on page 4",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
     cleanup();
     mock.native = false;
     render(<PdfAnnotations {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: /Annotations/ }));
     expect(screen.getByText(/Open the desktop app/)).toBeTruthy();
     expect(
       (
@@ -256,6 +272,38 @@ describe("private PDF annotations", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+  });
+  it("explains an existing draft and offers to reopen it beside a disabled highlight", async () => {
+    const selection = {
+      page: 4,
+      quote: "Cache locality",
+      rects: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.02 }],
+    };
+    render(<PdfAnnotations {...props} selection={selection} />);
+    await add();
+    fireEvent.change(screen.getByLabelText("Page note"), {
+      target: { value: "Keep this draft" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Annotations/ }));
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Highlight selected text",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Continue draft" }));
+    expect(
+      (screen.getByLabelText("Page note") as HTMLTextAreaElement).value,
+    ).toBe("Keep this draft");
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Highlight selected text",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
   });
   it("does not show an old response in a different PDF", async () => {
     let resolve!: (notes: PdfAnnotation[]) => void;

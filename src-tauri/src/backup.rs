@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-const CURRENT_SCHEMA: i64 = 10;
+const CURRENT_SCHEMA: i64 = 11;
 const APPLICATION_ID: i64 = 1397836881;
 const MAX_BACKUP_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const PREVIEW_LIFETIME: Duration = Duration::from_secs(15 * 60);
@@ -252,6 +252,32 @@ fn reference_schema(version: i64) -> Result<Connection> {
     {
         conn.execute_batch(sql)?;
     }
+    if version >= 11 {
+        conn.execute_batch("BEGIN")?;
+        crate::annotations::migrate_schema_11(&conn)?;
+        conn.execute_batch("COMMIT")?;
+    }
+    Ok(conn)
+}
+// Early schema-10 desktop builds shipped notes before highlight columns were
+// added. Accept only that exact historical schema and validate its notes before
+// the isolated staging migration. Inspecting a backup never changes its source.
+fn legacy_annotation_schema() -> Result<Connection> {
+    let conn = reference_schema(9)?;
+    conn.execute_batch(
+        "CREATE TABLE pdf_annotations (
+ id TEXT PRIMARY KEY,
+ book_id TEXT NOT NULL REFERENCES books(id),
+ document_revision TEXT NOT NULL CHECK(length(document_revision)=32),
+ page INTEGER NOT NULL CHECK(page BETWEEN 1 AND 100000),
+ body TEXT NOT NULL CHECK(length(CAST(body AS BLOB)) BETWEEN 1 AND 20000),
+ version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1),
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ deleted_at TEXT
+);
+CREATE INDEX pdf_annotations_document ON pdf_annotations(book_id,document_revision,page);",
+    )?;
     Ok(conn)
 }
 fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
@@ -264,7 +290,7 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
     conn.pragma_update(None, "query_only", true)?;
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if !(1..=CURRENT_SCHEMA).contains(&version) {
-        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–10; newer schemas require a newer app."));
+        return Err(invalid("This backup has an unsupported schema version. Use a Silicon Quest backup with schema 1–11; newer schemas require a newer app."));
     }
     let app_id: i64 = conn.pragma_query_value(None, "application_id", |r| r.get(0))?;
     if (version >= 5 && app_id != APPLICATION_ID)
@@ -280,7 +306,10 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
     {
         return Err(invalid("Backup triggers and views are not accepted."));
     }
-    if normalized_schema(&conn)? != normalized_schema(&reference_schema(version)?)? {
+    let schema = normalized_schema(&conn)?;
+    let legacy_annotations =
+        version == 10 && schema == normalized_schema(&legacy_annotation_schema()?)?;
+    if schema != normalized_schema(&reference_schema(version)?)? && !legacy_annotations {
         return Err(invalid("The backup schema does not match a supported Silicon Quest database. Extra triggers, views, tables or modified definitions are not accepted."));
     }
     let mut check = conn.prepare("PRAGMA integrity_check")?;
@@ -456,7 +485,12 @@ fn validate(path: &Path) -> Result<(i64, Option<String>, i64)> {
         }
     }
     if version >= 10 {
-        crate::annotations::validate_integrity(&conn)
+        let result = if legacy_annotations {
+            crate::annotations::validate_legacy_integrity(&conn)
+        } else {
+            crate::annotations::validate_integrity(&conn)
+        };
+        result
             .map_err(|_| invalid("This backup contains invalid or unsupported PDF annotations."))?;
     }
     if version >= 9 {
@@ -1142,6 +1176,71 @@ mod tests {
         let restored = open(directory.path(), "live.sqlite3");
         assert_eq!(restored.dashboard().unwrap().notes[0].body, "Legacy note");
         assert_eq!(restored.get_book_pdf("csapp").unwrap(), PDF);
+    }
+    #[test]
+    fn both_schema_ten_annotation_formats_restore_without_source_mutation() {
+        for legacy in [true, false] {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().join("schema-ten.sqlite3");
+            let revision = "11111111111111111111111111111111";
+            {
+                let reference = if legacy {
+                    legacy_annotation_schema().unwrap()
+                } else {
+                    reference_schema(10).unwrap()
+                };
+                let mut source = Connection::open(&path).unwrap();
+                online_copy(&reference, &mut source, None).unwrap();
+                source.pragma_update(None, "user_version", 10).unwrap();
+                source
+                    .execute(
+                        "INSERT INTO books(id,title,metadata_json) VALUES('csapp','CSAPP','{}')",
+                        [],
+                    )
+                    .unwrap();
+                source.execute("INSERT INTO book_documents(book_id,file_name,imported_at,bytes,document_revision) VALUES('csapp','old.pdf','2026-11-10T10:00:00Z',?1,?2)", rusqlite::params![PDF,revision]).unwrap();
+                source.execute("INSERT INTO pdf_annotations(id,book_id,document_revision,page,body,version,created_at,updated_at) VALUES('old-note','csapp',?1,5,'Keep my page note',3,'2026-11-10T10:00:00Z','2026-11-10T11:00:00Z')", [revision]).unwrap();
+                source.execute("INSERT INTO pdf_annotations(id,book_id,document_revision,page,body,version,created_at,updated_at,deleted_at) VALUES('removed-note','csapp',?1,8,'Deleted history',2,'2026-11-10T10:00:00Z','2026-11-10T11:00:00Z','2026-11-10T11:00:00Z')", [revision]).unwrap();
+                if !legacy {
+                    source.execute("INSERT INTO pdf_annotations(id,book_id,document_revision,page,body,quote,rects_json,created_at,updated_at) VALUES('old-highlight','csapp',?1,5,'','Selected words','[{\"x\":0.1,\"y\":0.2,\"width\":0.3,\"height\":0.04}]','2026-11-10T10:00:00Z','2026-11-10T11:00:00Z')", [revision]).unwrap();
+                }
+            }
+            let source_bytes = fs::read(&path).unwrap();
+            let mut store = open(directory.path(), "live.sqlite3");
+            let preview = store.inspect_backup_file(&path).unwrap();
+            assert_eq!(preview.source_schema_version, 10);
+            assert_eq!(preview.current_schema_version, 11);
+            assert_eq!(fs::read(&path).unwrap(), source_bytes);
+            store.restore_backup(&preview.preview_token).unwrap();
+            drop(store);
+            let restored = open(directory.path(), "live.sqlite3");
+            let notes = restored.get_pdf_annotations("csapp", revision).unwrap();
+            assert_eq!(notes.len(), if legacy { 1 } else { 2 });
+            let note = notes.iter().find(|note| note.id == "old-note").unwrap();
+            assert_eq!(note.body, "Keep my page note");
+            assert_eq!(note.version, 3);
+            assert!(note.quote.is_none());
+            assert!(note.rects.is_empty());
+            if !legacy {
+                let highlight = notes
+                    .iter()
+                    .find(|note| note.id == "old-highlight")
+                    .unwrap();
+                assert_eq!(highlight.quote.as_deref(), Some("Selected words"));
+                assert_eq!(highlight.rects.len(), 1);
+            }
+            let deleted: (i64, String) = restored
+                .conn
+                .query_row(
+                    "SELECT version,deleted_at FROM pdf_annotations WHERE id='removed-note'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!(deleted, (2, "2026-11-10T11:00:00Z".into()));
+            assert_eq!(restored.get_book_pdf("csapp").unwrap(), PDF);
+            assert_eq!(fs::read(&path).unwrap(), source_bytes);
+        }
     }
     #[test]
     fn every_supported_schema_revision_migrates_in_staging_without_source_mutation() {

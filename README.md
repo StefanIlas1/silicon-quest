@@ -78,6 +78,8 @@ Choose **Full screen** to expand the reader, then use **Exit full screen** or **
 
 Reimporting the current PDF preserves its state; replacing it with different bytes starts fresh reader state and hides the old revision's annotations. Unsaved annotation drafts survive navigation for the app session; save before quitting or restoring a backup. PDF page numbers may differ from printed page numbers. Browser preview keeps PDFs and bookmarks in memory for the current session only and requires the desktop app to save annotations.
 
+Annotation controls show when saved notes are loading or unavailable and offer a reload after a failed read. Save or discard an existing draft before starting another note or highlight. An unrelated reading-position load failure does not block annotations. On desktop startup, schema 11 upgrades earlier annotation storage while preserving page notes and any existing highlights.
+
 Import only PDFs and images you have permission to use. Books, artwork, notes, quiz history and progress belong in local application storage. PDFs, SQLite files, backups, environment files and local personal folders are ignored by Git. Never add a local study database, private cover image or licensed textbook to the repository.
 
 No benchmarks are claimed by this application. Portfolio performance improvements require correctness tests, controlled baselines, reproducible measurements and retained evidence.

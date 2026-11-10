@@ -138,3 +138,21 @@ cleanup were checked automatically, not through assistive technology.
 After the QA run, rebuilt the normal debug `Silicon Quest.app` bundle and
 verified its identifier was restored to `com.siliconquest.desktop`. This build
 was not launched against the learner's data for further writes.
+
+## Annotation schema recovery - 2026-11-10
+
+Read-only diagnosis found an existing schema-10 annotation table without the
+highlight columns expected by the current reader. Its saved-note read failed,
+leaving the annotation controls unavailable. Migration 11 supports this early
+layout and the later schema-10 highlight layout without dropping saved notes,
+versions, timestamps, deleted history or existing anchors. Reader errors and
+retry controls now remain visible when the annotations panel is collapsed.
+
+Automated verification passed 116 frontend tests and 94 headless Rust tests,
+including both historical layouts, migration rollback, persistence and backup
+restore without changing source backup or PDF bytes. No learner data or
+screenshots were added to the repository.
+
+Native UI automation was unavailable for this follow-up. No new native button
+interaction, text selection, save or visual alignment check is claimed. Earlier
+native smoke entries remain records of their respective builds and profiles.

@@ -7,6 +7,37 @@ use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 
+/// Normalize both schema-10 releases without changing any existing annotation.
+/// The caller must run this inside the migration transaction.
+pub(crate) fn migrate_schema_11(conn: &Connection) -> Result<()> {
+    let columns = conn
+        .prepare("PRAGMA table_info(pdf_annotations)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let has_quote = columns.iter().any(|name| name == "quote");
+    let has_rects = columns.iter().any(|name| name == "rects_json");
+    if has_quote != has_rects {
+        return Err(backup::error(
+            "invalid_annotation_schema",
+            "The annotation storage schema is incomplete. Existing data was preserved.",
+        ));
+    }
+    conn.execute_batch(include_str!("../migrations/011_pdf_highlights.sql"))?;
+    let anchors = if has_quote {
+        "quote,rects_json"
+    } else {
+        "NULL,'[]'"
+    };
+    conn.execute_batch(&format!(
+        "INSERT INTO pdf_annotations(id,book_id,document_revision,page,body,version,created_at,updated_at,deleted_at,quote,rects_json)
+         SELECT id,book_id,document_revision,page,body,version,created_at,updated_at,deleted_at,{anchors}
+         FROM pdf_annotations_before_highlights;
+         DROP TABLE pdf_annotations_before_highlights;
+         CREATE INDEX pdf_annotations_document ON pdf_annotations(book_id,document_revision,page);"
+    ))?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HighlightRect {
@@ -192,10 +223,21 @@ impl Store {
     }
 }
 pub(crate) fn validate_integrity(conn: &Connection) -> Result<()> {
+    validate_integrity_impl(conn, false)
+}
+pub(crate) fn validate_legacy_integrity(conn: &Connection) -> Result<()> {
+    validate_integrity_impl(conn, true)
+}
+fn validate_integrity_impl(conn: &Connection, legacy_notes_only: bool) -> Result<()> {
     if conn.query_row("SELECT count(*) FROM pdf_annotations",[],|r|r.get::<_,i64>(0))? > 200000 || conn.prepare("SELECT 1 FROM pdf_annotations GROUP BY book_id,document_revision HAVING count(*)>2000")?.exists([])? {
         return Err(invalid("The annotation history exceeds supported limits."));
     }
-    let mut statement = conn.prepare("SELECT id,document_revision,page,body,version,created_at,updated_at,deleted_at,quote,rects_json FROM pdf_annotations")?;
+    let anchors = if legacy_notes_only {
+        "NULL,'[]'"
+    } else {
+        "quote,rects_json"
+    };
+    let mut statement = conn.prepare(&format!("SELECT id,document_revision,page,body,version,created_at,updated_at,deleted_at,{anchors} FROM pdf_annotations"))?;
     let mut rows = statement.query([])?;
     while let Some(r) = rows.next()? {
         let id: String = r.get(0)?;
@@ -235,6 +277,145 @@ pub(crate) fn validate_integrity(conn: &Connection) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn both_schema_ten_variants_upgrade_without_losing_private_data() {
+        for legacy_notes_only in [true, false] {
+            let d = tempfile::tempdir().unwrap();
+            let path = d.path().join("live.sqlite3");
+            let revision;
+            let original;
+            {
+                let mut s = Store::open(&path).unwrap();
+                revision = s
+                    .import_book_pdf("csapp", "my.pdf", b"%PDF-1.7\nprivate")
+                    .unwrap()
+                    .document_revision;
+                s.save_note("cache-locality", "Private topic note").unwrap();
+                s.set_topic_status("cache-locality", "read").unwrap();
+                s.set_book_page("csapp", 9, &revision).unwrap();
+                s.save_pdf_annotation("csapp", &revision, input("note", 0, "Original"))
+                    .unwrap();
+                s.save_pdf_annotation("csapp", &revision, input("note", 1, "Edited private note"))
+                    .unwrap();
+                s.save_pdf_annotation("csapp", &revision, input("deleted", 0, "Removed note"))
+                    .unwrap();
+                s.remove_pdf_annotation("csapp", &revision, "deleted", 1)
+                    .unwrap();
+                if !legacy_notes_only {
+                    s.save_pdf_annotation("csapp", &revision, highlight("existing-highlight"))
+                        .unwrap();
+                }
+                original = serde_json::to_value(s.get_pdf_annotations("csapp", &revision).unwrap())
+                    .unwrap();
+                if legacy_notes_only {
+                    // Exact original v10 constraints: no highlight columns and a
+                    // nonempty body. This is the schema existing users received.
+                    s.conn.execute_batch(
+                        "ALTER TABLE pdf_annotations RENAME TO current_annotations;
+                         CREATE TABLE pdf_annotations (
+                          id TEXT PRIMARY KEY,
+                          book_id TEXT NOT NULL REFERENCES books(id),
+                          document_revision TEXT NOT NULL CHECK(length(document_revision)=32),
+                          page INTEGER NOT NULL CHECK(page BETWEEN 1 AND 100000),
+                          body TEXT NOT NULL CHECK(length(CAST(body AS BLOB)) BETWEEN 1 AND 20000),
+                          version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1),
+                          created_at TEXT NOT NULL,
+                          updated_at TEXT NOT NULL,
+                          deleted_at TEXT
+                         );
+                         INSERT INTO pdf_annotations SELECT id,book_id,document_revision,page,body,version,created_at,updated_at,deleted_at FROM current_annotations;
+                         DROP TABLE current_annotations;
+                         CREATE INDEX pdf_annotations_document ON pdf_annotations(book_id,document_revision,page);"
+                    ).unwrap();
+                }
+                s.conn.pragma_update(None, "user_version", 10).unwrap();
+            }
+            let mut upgraded = Store::open(&path).unwrap();
+            assert_eq!(
+                serde_json::to_value(upgraded.get_pdf_annotations("csapp", &revision).unwrap())
+                    .unwrap(),
+                original
+            );
+            let deleted: (i64, Option<String>) = upgraded
+                .conn
+                .query_row(
+                    "SELECT version,deleted_at FROM pdf_annotations WHERE id='deleted'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!(deleted.0, 2);
+            assert!(deleted.1.is_some());
+            assert_eq!(
+                upgraded.get_book_pdf("csapp").unwrap(),
+                b"%PDF-1.7\nprivate"
+            );
+            assert_eq!(upgraded.get_book_reader_state("csapp").unwrap().page, 9);
+            let dashboard = upgraded.dashboard().unwrap();
+            assert_eq!(dashboard.notes[0].body, "Private topic note");
+            assert_eq!(dashboard.total_xp, 20);
+            upgraded
+                .save_pdf_annotation("csapp", &revision, highlight("new-highlight"))
+                .unwrap();
+            assert_eq!(
+                upgraded
+                    .conn
+                    .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                11
+            );
+            drop(upgraded);
+            let reopened = Store::open(&path).unwrap();
+            assert!(reopened
+                .get_pdf_annotations("csapp", &revision)
+                .unwrap()
+                .iter()
+                .any(|a| a.id == "new-highlight" && a.body.is_empty()));
+        }
+    }
+
+    #[test]
+    fn failed_highlight_migration_rolls_back_schema_version_and_records() {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("live.sqlite3");
+        {
+            let mut s = Store::open(&path).unwrap();
+            let revision = s
+                .import_book_pdf("csapp", "my.pdf", b"%PDF-1.7\nprivate")
+                .unwrap()
+                .document_revision;
+            s.save_pdf_annotation("csapp", &revision, input("note", 0, "Preserved note"))
+                .unwrap();
+            s.conn
+                .pragma_update(None, "ignore_check_constraints", true)
+                .unwrap();
+            s.conn
+                .execute("UPDATE pdf_annotations SET quote='' WHERE id='note'", [])
+                .unwrap();
+            s.conn.pragma_update(None, "user_version", 10).unwrap();
+        }
+        assert!(Store::open(&path).is_err());
+        let conn = Connection::open(&path).unwrap();
+        assert_eq!(
+            conn.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                .unwrap(),
+            10
+        );
+        let original: (String, String) = conn
+            .query_row(
+                "SELECT body,quote FROM pdf_annotations WHERE id='note'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(original, ("Preserved note".into(), "".into()));
+        assert!(!conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE name='pdf_annotations_before_highlights'")
+            .unwrap()
+            .exists([])
+            .unwrap());
+    }
+
     fn input(id: &str, version: i64, body: &str) -> AnnotationInput {
         AnnotationInput {
             id: id.into(),
@@ -471,7 +652,7 @@ mod tests {
         s.remove_pdf_annotation("csapp", &revision, "highlight", 1)
             .unwrap();
         let preview = s.inspect_backup_file(&backup).unwrap();
-        assert_eq!(preview.source_schema_version, 10);
+        assert_eq!(preview.source_schema_version, 11);
         s.restore_backup(&preview.preview_token).unwrap();
         drop(s);
         let mut restored = Store::open(&path).unwrap();

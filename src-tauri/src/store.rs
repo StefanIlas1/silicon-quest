@@ -179,7 +179,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 10 {
+        if version > 11 {
             return Err(AppError { code: "newer_database", message: "This database was created by a newer Silicon Quest version. Update the app to open it.".into() });
         }
         if version < 1 {
@@ -241,6 +241,12 @@ impl Store {
             let tx = conn.transaction()?;
             tx.execute_batch(include_str!("../migrations/010_pdf_annotations.sql"))?;
             tx.pragma_update(None, "user_version", 10)?;
+            tx.commit()?;
+        }
+        if version < 11 {
+            let tx = conn.transaction()?;
+            crate::annotations::migrate_schema_11(&tx)?;
+            tx.pragma_update(None, "user_version", 11)?;
             tx.commit()?;
         }
         let curriculum: Value = serde_json::from_str(CURRICULUM)?;
@@ -1141,7 +1147,7 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 10);
+        assert_eq!(version, 11);
     }
     #[test]
     fn pdf_import_is_local_validated_and_replaces_atomically() {

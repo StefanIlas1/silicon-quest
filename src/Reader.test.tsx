@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import Reader from "./Reader";
+import { discardAnnotationDrafts } from "./PdfAnnotations";
 const mock = vi.hoisted(() => ({
   native: true,
   invoke: vi.fn(),
@@ -63,6 +64,7 @@ const initial = {
 };
 let state = structuredClone(initial);
 beforeEach(() => {
+  discardAnnotationDrafts();
   mock.native = true;
   vi.clearAllMocks();
   state = structuredClone(initial);
@@ -113,6 +115,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  discardAnnotationDrafts();
   vi.restoreAllMocks();
 });
 describe("persisted PDF workspace", () => {
@@ -431,5 +434,20 @@ describe("persisted PDF workspace", () => {
     expect(onError).toHaveBeenCalledWith(
       "Reading state unavailable: Database unavailable",
     );
+    const addNote = screen.getByRole("button", {
+      name: "Note on page 1",
+    }) as HTMLButtonElement;
+    await waitFor(() => expect(addNote.disabled).toBe(false));
+    fireEvent.click(addNote);
+    fireEvent.change(screen.getByLabelText("Page note"), {
+      target: { value: "Independent of bookmark state" },
+    });
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Save page note",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
   });
 });

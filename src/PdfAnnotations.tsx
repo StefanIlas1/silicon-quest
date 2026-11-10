@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MessageSquare, Pencil, Plus, Trash2, X } from "lucide-react";
 import { errorMessage, native } from "./backend";
@@ -80,6 +80,20 @@ export default function PdfAnnotations({
   const [notice, setNotice] = useState("");
   const [retry, setRetry] = useState(0);
   const [removeId, setRemoveId] = useState<string | null>(null);
+  const availabilityId = useId();
+  const unavailableReason = !native
+    ? "Open the desktop app to save page notes and highlights locally."
+    : !ready
+      ? error
+        ? "Annotations are unavailable until saved notes can be loaded."
+        : "Loading annotations…"
+      : disabled
+        ? "Wait for the PDF import to finish before adding annotations."
+        : busy
+          ? "Saving annotations…"
+          : draft
+            ? "Save or discard your current draft in Annotations to add another note or highlight."
+            : "";
   const onChange = useRef(onAnnotationsChange);
   onChange.current = onAnnotationsChange;
   useEffect(() => {
@@ -239,6 +253,7 @@ export default function PdfAnnotations({
         <button
           className="secondary-button"
           disabled={!native || !ready || busy || disabled || draft !== null}
+          aria-describedby={unavailableReason ? availabilityId : undefined}
           onClick={() => edit()}
         >
           <Plus size={14} /> Note on page {page}
@@ -250,10 +265,43 @@ export default function PdfAnnotations({
           <button
             className="primary-button"
             disabled={!native || !ready || disabled || busy || draft !== null}
+            aria-describedby={unavailableReason ? availabilityId : undefined}
             onClick={highlight}
           >
             Highlight selected text
           </button>
+        </div>
+      )}
+      {unavailableReason && (
+        <p
+          className="annotation-availability"
+          id={availabilityId}
+          role="status"
+        >
+          {unavailableReason}
+          {draft && !open && (
+            <button className="annotation-jump" onClick={() => setOpen(true)}>
+              Continue draft
+            </button>
+          )}
+        </p>
+      )}
+      {error && (
+        <div className="annotation-error" role="alert">
+          <p>{error}</p>
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => setRetry(retry + 1)}
+          >
+            Reload saved notes
+          </button>
+          {draft && (
+            <small>
+              Your draft stays here. Copy it before discarding if a saved note
+              changed.
+            </small>
+          )}
         </div>
       )}
       {open && (
@@ -264,26 +312,6 @@ export default function PdfAnnotations({
             pages may have no text to select. Notes and highlights do not alter
             the PDF.
           </small>
-          {!native && <p>Open the desktop app to save page notes locally.</p>}
-          {native && !ready && !error && (
-            <p role="status">Loading annotations…</p>
-          )}
-          {error && (
-            <div className="annotation-error" role="alert">
-              <p>{error}</p>
-              <button
-                className="secondary-button"
-                disabled={busy}
-                onClick={() => setRetry(retry + 1)}
-              >
-                Reload saved notes
-              </button>
-              <small>
-                Your draft stays here. Copy it before discarding if a saved note
-                changed.
-              </small>
-            </div>
-          )}
           {notice && <p role="status">{notice}</p>}
           {draft && (
             <form
